@@ -426,6 +426,47 @@ export default function App() {
         return passEmp && passStart && passEnd;
       });
 
+    const isSingleEmployee = filterEmp !== '';
+    const selectedEmp = isSingleEmployee ? employees.find(e => e.id === filterEmp) : null;
+    
+    let summary = null;
+    if (selectedEmp) {
+      const allRecords = attendance.filter(a => a.employeeId === selectedEmp.id);
+      const totalAllPenaltyHours = allRecords.reduce((sum, r) => sum + (r.penaltyHours || 0), 0);
+      const hoursPerLeaveDay = settings.hoursPerLeaveDay || 6;
+      const consumedLeavesAllTime = (totalAllPenaltyHours / hoursPerLeaveDay).toFixed(2);
+      const remainingLeaves = (selectedEmp.totalLeaves - consumedLeavesAllTime).toFixed(2);
+
+      const rangeExtraHours = filtered.reduce((sum, r) => sum + (parseFloat(r.extraHours) || 0), 0);
+      const rangePenaltyHours = filtered.reduce((sum, r) => sum + (parseFloat(r.penaltyHours) || 0), 0);
+      const rangeOtValue = rangeExtraHours * (parseFloat(settings.overtimeRate) || 0);
+      const rangeConsumedLeaves = (rangePenaltyHours / hoursPerLeaveDay).toFixed(2);
+
+      const rangeAdvancesList = advances.filter(ad => {
+         if (ad.employeeId !== selectedEmp.id) return false;
+         const adDate = ad.date || `${ad.month}-01`;
+         const passStart = filterDateStart ? adDate >= filterDateStart : true;
+         const passEnd = filterDateEnd ? adDate <= filterDateEnd : true;
+         return passStart && passEnd;
+      });
+
+      const totalRangeAdvances = rangeAdvancesList.reduce((sum, ad) => sum + (parseFloat(ad.amount) || 0), 0);
+      const baseSalary = parseFloat(selectedEmp.salary) || 0;
+      const netSalary = baseSalary + rangeOtValue - totalRangeAdvances;
+
+      summary = {
+        name: selectedEmp.name,
+        baseSalary,
+        rangeExtraHours,
+        rangeOtValue,
+        totalRangeAdvances,
+        netSalary,
+        remainingLeaves,
+        rangeConsumedLeaves,
+        rangePenaltyHours
+      };
+    }
+
     return (
       <div className="animate-fade-in card print-card">
         <div className="card-header no-print">
@@ -443,6 +484,27 @@ export default function App() {
           <div className="form-group" style={{marginBottom: 0}}><label>من تاريخ</label><input type="date" value={filterDateStart} onChange={e=>setFilterDateStart(e.target.value)} /></div>
           <div className="form-group" style={{marginBottom: 0}}><label>إلى تاريخ</label><input type="date" value={filterDateEnd} onChange={e=>setFilterDateEnd(e.target.value)} /></div>
         </div>
+        
+        {summary && (
+          <div className="print-summary" style={{marginBottom: '1.5rem', padding: '1.5rem', border: '2px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)'}}>
+            <h3 style={{marginBottom: '1rem', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem'}}>
+              تقرير الموظف: {summary.name} 
+              {filterDateStart && filterDateEnd ? ` (من ${filterDateStart} إلى ${filterDateEnd})` : ''}
+            </h3>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', fontWeight: 'bold'}}>
+               <div>الراتب الأساسي:<br/><span style={{color: 'var(--text-secondary)', fontSize:'1.2rem'}}>{summary.baseSalary.toLocaleString()} ل.س</span></div>
+               <div>ساعات العمل الإضافي:<br/><span style={{color: 'var(--success)', fontSize:'1.2rem'}}>{summary.rangeExtraHours} ساعة ({summary.rangeOtValue.toLocaleString()} ل.س)</span></div>
+               <div>ساعات التأخير (للفترة):<br/><span style={{color: 'var(--danger)', fontSize:'1.2rem'}}>{summary.rangePenaltyHours} ساعة (~ {summary.rangeConsumedLeaves} يوم إجازة)</span></div>
+               <div>السلف (للفترة):<br/><span style={{color: 'var(--warning)', fontSize:'1.2rem'}}>{summary.totalRangeAdvances.toLocaleString()} ل.س</span></div>
+               <div>رصيد الإجازات المتبقي (الكلي):<br/><span style={{color: summary.remainingLeaves < 3 ? 'var(--danger)' : 'var(--primary)', fontSize:'1.2rem'}}>{summary.remainingLeaves} يوم</span></div>
+               <div style={{borderRight: '4px solid var(--primary)', paddingRight: '0.5rem', color: 'var(--primary)'}}>
+                 صافي الراتب المستحق:<br/>
+                 <span style={{fontSize:'1.5rem', color: 'var(--primary)'}}>{summary.netSalary.toLocaleString()} ل.س</span>
+               </div>
+            </div>
+          </div>
+        )}
+
         <div className="table-container">
           <table>
             <thead><tr><th>الموظف</th><th>التاريخ</th><th>النوع</th><th>الحضور</th><th>الانصراف</th><th>إضافي</th><th>تأخير</th><th>إجراءات</th></tr></thead>
