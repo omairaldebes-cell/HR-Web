@@ -18,7 +18,8 @@ import {
   Edit,
   Lock,
   LogOut,
-  UserCog
+  UserCog,
+  Menu
 } from 'lucide-react';
 
 const DEFAULT_SETTINGS = {
@@ -42,6 +43,7 @@ const navItems = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Auth State
   const [loggedInUser, setLoggedInUser] = useState(() => {
@@ -687,39 +689,59 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <header className="header" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-        <div className="header-title">
-          <Clock size={28} /> نظام إدارة الموارد البشرية
+      {/* SIDEBAR */}
+      <aside 
+        className={`sidebar ${isSidebarOpen ? 'expanded' : ''}`}
+        onMouseEnter={() => setIsSidebarOpen(true)}
+        onMouseLeave={() => setIsSidebarOpen(false)}
+      >
+        <div className="sidebar-header">
+           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="sidebar-toggle">
+              <Menu size={24} />
+           </button>
+           <span className="sidebar-title">تطبيق HR</span>
         </div>
-        <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-          <div style={{fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
-            <UserCog size={18} /> أهلًا، {loggedInUser.username}
-          </div>
-          <button onClick={handleLogout} className="btn btn-danger" style={{padding: '0.4rem 0.8rem', display: 'flex', gap: '0.5rem', alignItems:'center'}}>
-            <LogOut size={16} /> تسجيل খروج
-          </button>
-        </div>
-      </header>
-
-      <main className="main-content">
-        <div className="tabs" style={{overflowX: 'auto', paddingBottom: '0.5rem'}}>
+        
+        <nav className="sidebar-nav">
           {allowedNavItems.map(tab => {
             const Icon = tab.icon;
             return (
               <div 
                 key={tab.id}
-                className={`tab ${activeTab === tab.id ? 'active' : ''}`}
+                className={`sidebar-nav-item ${activeTab === tab.id ? 'active' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
-                style={{whiteSpace: 'nowrap'}}
               >
-                <Icon size={18} /> {tab.label}
+                <Icon size={24} /> 
+                <span className="sidebar-label">{tab.label}</span>
               </div>
             );
           })}
-        </div>
+        </nav>
         
-        {renderActiveView()}
-      </main>
+        <div className="sidebar-footer">
+          <div className="sidebar-user" title={loggedInUser.username}>
+            <UserCog size={24} />
+            <span className="sidebar-label">{loggedInUser.username} {loggedInUser.role === 'admin' ? '(مدير)' : ''}</span>
+          </div>
+          <button onClick={handleLogout} className="sidebar-nav-item logout-btn">
+            <LogOut size={24} /> 
+            <span className="sidebar-label">تسجيل خروج</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* MAIN CONTENT */}
+      <div className="main-wrapper">
+        <header className="top-header">
+          <div className="header-title">
+             نظام إدارة الموارد البشرية (النسخة السحابية)
+          </div>
+        </header>
+
+        <main className="main-content">
+          {renderActiveView()}
+        </main>
+      </div>
     </div>
   );
 }
