@@ -368,7 +368,7 @@ export default function App() {
 
   const AttendanceView = () => {
     const [empId, setEmpId] = useState(''); const [date, setDate] = useState('');
-    const [checkIn, setCheckIn] = useState(''); const [checkOut, setCheckOut] = useState('');
+    const [checkIn, setCheckIn] = useState(settings.workStart || '09:00'); const [checkOut, setCheckOut] = useState('');
     const [extraHours, setExtraHours] = useState(0);
 
     const handleAdd = async (e) => {
@@ -378,7 +378,7 @@ export default function App() {
       const penaltyHours = calculatePenaltyHours(checkIn, actualCheckOut, settings.workStart, settings.workEnd);
       await addDoc(collection(db, 'attendance'), { employeeId: empId, date, checkIn, checkOut: actualCheckOut, penaltyHours, extraHours: parseFloat(extraHours) || 0, type: 'manual', timestamp: Date.now() });
       alert(`تم بنجاح. التأخير: ${penaltyHours} ساعة.`);
-      setDate(''); setCheckIn(''); setCheckOut(''); setEmpId(''); setExtraHours(0);
+      setDate(''); setCheckIn(settings.workStart || '09:00'); setCheckOut(''); setEmpId(''); setExtraHours(0);
     };
 
     return (
