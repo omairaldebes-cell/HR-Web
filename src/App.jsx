@@ -19,14 +19,30 @@ import {
   Lock,
   LogOut,
   UserCog,
-  Menu
+  Menu,
+  Printer
 } from 'lucide-react';
+
+const ARABIC_MONTHS = ['كانون الثاني', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين الأول', 'تشرين الثاني', 'كانون الأول'];
+
+const MonthPicker = ({ value, onChange }) => {
+  const [year, month] = value.split('-');
+  return (
+    <div style={{display:'flex', gap:'0.5rem', alignItems:'center'}}>
+      <select value={month} onChange={e => onChange(`${year}-${e.target.value}`)} className="btn-outline btn" style={{padding: '0.4rem 1rem'}}>
+        {ARABIC_MONTHS.map((m, i) => <option key={i} value={String(i+1).padStart(2,'0')}>{m}</option>)}
+      </select>
+      <input type="number" value={year} onChange={e => onChange(`${e.target.value}-${month}`)} className="btn-outline btn" style={{padding: '0.4rem', width:'80px'}} />
+    </div>
+  );
+};
 
 const DEFAULT_SETTINGS = {
   workStart: '09:00',
   workEnd: '15:00',
   hoursPerLeaveDay: 6,
-  overtimeRate: 0
+  overtimeRate: 0,
+  themeMode: 'dark'
 };
 
 const navItems = [
@@ -109,6 +125,11 @@ export default function App() {
       unsubEmp(); unsubAtt(); unsubAdv(); unsubSet(); unsubUsers();
     };
   }, []);
+
+  // Apply theme mode
+  useEffect(() => {
+    document.body.className = settings.themeMode || 'dark';
+  }, [settings.themeMode]);
 
   // Update localStorage when logged in user changes
   useEffect(() => {
@@ -212,10 +233,10 @@ export default function App() {
 
   const Dashboard = () => (
     <div className="animate-fade-in">
-      <div className="card-header">
+      <div className="card-header no-print">
         <h2 className="card-title"><LayoutDashboard /> لوحة القيادة</h2>
         <div>
-          <input type="month" value={viewMonth} onChange={e => setViewMonth(e.target.value)} className="btn-outline btn" style={{padding: '0.4rem 1rem'}} />
+          <MonthPicker value={viewMonth} onChange={setViewMonth} />
         </div>
       </div>
 
@@ -353,8 +374,9 @@ export default function App() {
     const handleAdd = async (e) => {
       e.preventDefault();
       if (!empId || !date) return;
-      const penaltyHours = calculatePenaltyHours(checkIn, checkOut, settings.workStart, settings.workEnd);
-      await addDoc(collection(db, 'attendance'), { employeeId: empId, date, checkIn, checkOut, penaltyHours, extraHours: parseFloat(extraHours) || 0, type: 'manual', timestamp: Date.now() });
+      const actualCheckOut = checkOut || settings.workEnd;
+      const penaltyHours = calculatePenaltyHours(checkIn, actualCheckOut, settings.workStart, settings.workEnd);
+      await addDoc(collection(db, 'attendance'), { employeeId: empId, date, checkIn, checkOut: actualCheckOut, penaltyHours, extraHours: parseFloat(extraHours) || 0, type: 'manual', timestamp: Date.now() });
       alert(`تم بنجاح. التأخير: ${penaltyHours} ساعة.`);
       setDate(''); setCheckIn(''); setCheckOut(''); setEmpId(''); setExtraHours(0);
     };
@@ -380,7 +402,9 @@ export default function App() {
   };
 
   const RecordsView = () => {
-    const [filterEmp, setFilterEmp] = useState(''); const [filterDate, setFilterDate] = useState('');
+    const [filterEmp, setFilterEmp] = useState(''); 
+    const [filterDateStart, setFilterDateStart] = useState('');
+    const [filterDateEnd, setFilterDateEnd] = useState('');
     const [editId, setEditId] = useState(null); const [editData, setEditData] = useState({ checkIn: '', checkOut: '', extraHours: 0 });
 
     const handleEdit = async (rec) => {
@@ -396,16 +420,28 @@ export default function App() {
     const handleDelete = async(id) => window.confirm('متأكد من عملية الحذف؟') && await deleteDoc(doc(db, 'attendance', id));
 
     const filtered = attendance.slice().sort((a,b) => (b.timestamp||0)-(a.timestamp||0)).filter(rec => {
-        const emp = employees.find(e => e.id === rec.employeeId);
-        return (filterEmp ? (emp?.name.toLowerCase().includes(filterEmp.toLowerCase())) : true) && (filterDate ? rec.date === filterDate : true);
+        const passEmp = filterEmp ? rec.employeeId === filterEmp : true;
+        const passStart = filterDateStart ? rec.date >= filterDateStart : true;
+        const passEnd = filterDateEnd ? rec.date <= filterDateEnd : true;
+        return passEmp && passStart && passEnd;
       });
 
     return (
-      <div className="animate-fade-in card">
-        <h2 className="card-title" style={{marginBottom: '1.5rem'}}><FileText /> سجل الحضور الكامل</h2>
-        <div className="stats-grid" style={{marginBottom: '1rem', backgroundColor: 'var(--bg-color)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)'}}>
-          <div className="form-group" style={{marginBottom: 0}}><label>الاسم</label><input type="text" placeholder="بحث..." value={filterEmp} onChange={e=>setFilterEmp(e.target.value)} /></div>
-          <div className="form-group" style={{marginBottom: 0}}><label>التاريخ</label><input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} /></div>
+      <div className="animate-fade-in card print-card">
+        <div className="card-header no-print">
+          <h2 className="card-title"><FileText /> سجل الحضور الكامل</h2>
+          <button onClick={() => window.print()} className="btn btn-outline" style={{display:'flex', alignItems:'center', gap:'0.5rem'}}><Printer size={18}/> طباعة</button>
+        </div>
+        <div className="stats-grid no-print" style={{marginBottom: '1rem', backgroundColor: 'var(--bg-color)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)'}}>
+          <div className="form-group" style={{marginBottom: 0}}>
+            <label>الموظف</label>
+            <select value={filterEmp} onChange={e=>setFilterEmp(e.target.value)}>
+              <option value="">الكل</option>
+              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{marginBottom: 0}}><label>من تاريخ</label><input type="date" value={filterDateStart} onChange={e=>setFilterDateStart(e.target.value)} /></div>
+          <div className="form-group" style={{marginBottom: 0}}><label>إلى تاريخ</label><input type="date" value={filterDateEnd} onChange={e=>setFilterDateEnd(e.target.value)} /></div>
         </div>
         <div className="table-container">
           <table>
@@ -469,11 +505,12 @@ export default function App() {
   const AdvancesView = () => {
     const [empId, setEmpId] = useState(''); 
     const [month, setMonth] = useState(() => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; });
+    const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
     const [amount, setAmount] = useState('');
 
     const handleAdd = async (e) => {
-      e.preventDefault(); if (!empId || !month || !amount) return;
-      await addDoc(collection(db, 'advances'), { employeeId: empId, month, amount: parseFloat(amount), timestamp: Date.now() });
+      e.preventDefault(); if (!empId || !month || !amount || !date) return;
+      await addDoc(collection(db, 'advances'), { employeeId: empId, date, month, amount: parseFloat(amount), timestamp: Date.now() });
       alert('تم التسجيل بنجاح.'); setEmpId(''); setAmount('');
     };
 
@@ -486,7 +523,8 @@ export default function App() {
           <form onSubmit={handleAdd}>
             <div className="stats-grid">
               <div className="form-group"><label>الموظف</label><select value={empId} onChange={e=>setEmpId(e.target.value)} required><option value="">-- اختر --</option>{employees.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></div>
-              <div className="form-group"><label>للشهر</label><input type="month" value={month} onChange={e=>setMonth(e.target.value)} required /></div>
+              <div className="form-group"><label>تاريخ الطلب</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} required /></div>
+              <div className="form-group"><label>تخصم من شهر</label><MonthPicker value={month} onChange={setMonth} /></div>
               <div className="form-group"><label>المبلغ (ل.س)</label><input type="number" value={amount} onChange={e=>setAmount(e.target.value)} required /></div>
             </div>
             <button type="submit" className="btn btn-primary" style={{marginTop:'1rem'}}>صرف</button>
@@ -497,10 +535,10 @@ export default function App() {
           <h2 className="card-title" style={{marginBottom:'1rem'}}>السلف السابقة</h2>
           <div className="table-container">
             <table>
-              <thead><tr><th>الموظف</th><th>الشهر</th><th>المبلغ</th><th>حذف</th></tr></thead>
+              <thead><tr><th>الموظف</th><th>تاريخ الطلب</th><th>لشهر</th><th>المبلغ</th><th>حذف</th></tr></thead>
               <tbody>
                 {advances.slice().sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).map(adv => (
-                  <tr key={adv.id}><td>{employees.find(e=>e.id===adv.employeeId)?.name}</td><td>{adv.month}</td><td>{adv.amount.toLocaleString()}</td><td><button onClick={()=>handleDelete(adv.id)} className="btn btn-danger" style={{padding:'0.3rem'}}><Trash2 size={16}/></button></td></tr>
+                  <tr key={adv.id}><td>{employees.find(e=>e.id===adv.employeeId)?.name}</td><td>{adv.date || '-'}</td><td>{adv.month}</td><td>{adv.amount.toLocaleString()}</td><td><button onClick={()=>handleDelete(adv.id)} className="btn btn-danger" style={{padding:'0.3rem'}}><Trash2 size={16}/></button></td></tr>
                 ))}
               </tbody>
             </table>
@@ -561,6 +599,14 @@ export default function App() {
           <div className="form-group"><label>وقت الانصراف</label><input type="time" value={stg.workEnd} onChange={e=>setStg({...stg, workEnd:e.target.value})} required /></div>
           <div className="form-group"><label>ساعات العمل اليومية (تعادل يوم إجازة كامل)</label><input type="number" value={stg.hoursPerLeaveDay} onChange={e=>setStg({...stg, hoursPerLeaveDay:parseInt(e.target.value)})} required /></div>
           <div className="form-group"><label>قيمة ساعة العمل الإضافية الواحدة (ل.س)</label><input type="number" value={stg.overtimeRate} onChange={e=>setStg({...stg, overtimeRate:parseFloat(e.target.value)})} required /></div>
+          <div className="form-group">
+            <label>المظهر (Theme)</label>
+            <select value={stg.themeMode || 'dark'} onChange={e=>setStg({...stg, themeMode: e.target.value})}>
+              <option value="light">فاتح (Light)</option>
+              <option value="dark">داكن (Dark)</option>
+              <option value="colorful">ملون (Colorful)</option>
+            </select>
+          </div>
           <button type="submit" className="btn btn-primary" style={{marginTop:'1rem'}}>حفظ الإعدادات</button>
         </form>
       </div>

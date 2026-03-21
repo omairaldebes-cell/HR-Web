@@ -1,4 +1,4 @@
-:root {
+:root, .light {
   --primary: #3b82f6; /* Blue */
   --primary-hover: #2563eb;
   --secondary: #1e293b; /* Slate 800 */
@@ -19,15 +19,29 @@
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-color: #0f172a;
-    --surface: #1e293b;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --border: #334155;
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
-  }
+.dark {
+  --primary: #3b82f6;
+  --bg-color: #0f172a;
+  --surface: #1e293b;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --border: #334155;
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+}
+
+.colorful {
+  --primary: #8b5cf6; /* Violet */
+  --primary-hover: #7c3aed;
+  --secondary: #c026d3; /* Fuchsia */
+  --bg-color: #fdf4ff; /* Fuchsia 50 */
+  --surface: #ffffff;
+  --text-primary: #4a044e; /* Fuchsia 900 */
+  --text-secondary: #86198f; /* Fuchsia 800 */
+  --border: #f5d0fe; /* Fuchsia 200 */
+  --danger: #f43f5e;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --shadow-md: 0 4px 6px -1px rgb(192 38 211 / 0.2), 0 2px 4px -2px rgb(192 38 211 / 0.2);
 }
 
 * {
@@ -527,4 +541,42 @@ tr:hover td {
 .flex-row {
   display: flex;
   gap: 1rem;
+}
+
+@media print {
+  .no-print, .sidebar, .top-header, .tabs, button {
+    display: none !important;
+  }
+  .app-container {
+    display: block;
+  }
+  .main-wrapper, .main-content {
+    margin: 0;
+    padding: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: white !important;
+  }
+  body, .print-card {
+    background: white !important;
+    color: black !important;
+  }
+  .print-card {
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  table {
+    border: 1px solid #000;
+  }
+  th, td {
+    color: black !important;
+    border: 1px solid #000 !important;
+    background: white !important;
+    padding: 8px !important;
+  }
+  h2, h3 {
+    color: black !important;
+  }
 }
