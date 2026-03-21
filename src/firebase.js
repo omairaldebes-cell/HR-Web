@@ -1,0 +1,18 @@
+import { initializeApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBtB-LCH2APJrim5HTqhiVfZvwRPLnZR6g",
+  authDomain: "hr-system-9542b.firebaseapp.com",
+  projectId: "hr-system-9542b",
+  storageBucket: "hr-system-9542b.firebasestorage.app",
+  messagingSenderId: "623647081770",
+  appId: "1:623647081770:web:0be12f075c71c35df20a53",
+  measurementId: "G-WBGQQJYCES"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// Initialize Cloud Firestore and get a reference to the service
+export const db = getFirestore(app);
