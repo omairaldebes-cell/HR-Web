@@ -10,12 +10,13 @@ export const parseExcel = async (file) => {
         const data = e.target.result;
         const workbook = XLSX.read(data, { type: 'binary' });
 
-        // Assuming first sheet is the relevant one
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-
-        const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-        resolve(json);
+        // Process all sheets
+        const result = {};
+        workbook.SheetNames.forEach(sheetName => {
+          const worksheet = workbook.Sheets[sheetName];
+          result[sheetName] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+        });
+        resolve(result);
       } catch (error) {
         reject(error);
       }

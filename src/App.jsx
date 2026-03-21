@@ -549,37 +549,152 @@ export default function App() {
   };
 
   const UploadView = () => {
+    const [previewRecords, setPreviewRecords] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
+
     const handleFile = async (e) => {
       const file = e.target.files[0]; if (!file) return;
       try {
-        const data = await parseExcel(file);
-        if (!data || data.length === 0) return alert('الملف فارغ أو غير صالح');
+        const rawSheets = await parseExcel(file);
+        if (!rawSheets || Object.keys(rawSheets).length === 0) return alert('الملف فارغ أو غير صالح');
         let newRecords = [];
-        data.forEach((row, i) => {
-          const keys = Object.keys(row);
-          const getVal = (keywords) => { const k = keys.find(key=>keywords.some(kw=>key.toLowerCase().includes(kw))); return k ? row[k] : null; };
-          const empName = getVal(['اسم', 'name', 'employee']); const dateVal = getVal(['تاريخ', 'date']);
-          const inVal = getVal(['حضور', 'in', 'start']); const outVal = getVal(['انصراف', 'out', 'end']);
-          if (empName && dateVal) {
-            const emp = employees.find(e => e.name.toLowerCase() === empName.toString().toLowerCase().trim());
-            if (emp) {
-              const penaltyHours = calculatePenaltyHours(inVal, outVal, settings.workStart, settings.workEnd);
-              newRecords.push({ employeeId: emp.id, date: typeof dateVal==='number'?new Date((dateVal-(25567+1))*86400*1000).toISOString().split('T')[0]:dateVal, checkIn: inVal||'', checkOut: outVal||'', penaltyHours, extraHours: 0, type: 'excel', timestamp: Date.now()+i });
+        
+        Object.keys(rawSheets).forEach((sheetName, sIndex) => {
+          const rows = rawSheets[sheetName];
+          let matchedEmp = employees.find(e => e.name.toLowerCase().trim() === sheetName.toLowerCase().trim());
+
+          rows.forEach((row, i) => {
+            const keys = Object.keys(row);
+            const getVal = (keywords) => { const k = keys.find(key=>keywords.some(kw=>key.toLowerCase().includes(kw))); return k ? row[k] : null; };
+            const rowEmpName = getVal(['اسم', 'name', 'employee']);
+            
+            let finalEmp = matchedEmp;
+            if (rowEmpName) {
+               finalEmp = employees.find(e => e.name.toLowerCase().trim() === rowEmpName.toString().toLowerCase().trim()) || finalEmp;
             }
-          }
+
+            const dateVal = getVal(['تاريخ', 'date', 'يوم']);
+            let inVal = getVal(['حضور', 'in', 'start']); 
+            let outVal = getVal(['انصراف', 'out', 'end']);
+            
+            const formatExcelTime = (val) => {
+              if (typeof val === 'number') {
+                const totalSeconds = Math.round(val * 86400);
+                const hrs = Math.floor(totalSeconds / 3600);
+                const mins = Math.floor((totalSeconds % 3600) / 60);
+                return `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}`;
+              }
+              return val ? String(val) : '';
+            };
+
+            inVal = formatExcelTime(inVal);
+            outVal = formatExcelTime(outVal);
+
+            if (finalEmp && dateVal) {
+               const parsedDate = typeof dateVal === 'number' 
+                 ? new Date((dateVal - (25567 + 1)) * 86400 * 1000).toISOString().split('T')[0]
+                 : String(dateVal);
+                 
+               const actualOutVal = outVal || settings.workEnd;
+               const penaltyHours = calculatePenaltyHours(inVal, actualOutVal, settings.workStart, settings.workEnd);
+               
+               newRecords.push({
+                 id: Date.now() + '-' + i + '-' + sIndex,
+                 employeeId: finalEmp.id,
+                 empName: finalEmp.name,
+                 date: parsedDate,
+                 checkIn: inVal,
+                 checkOut: outVal,
+                 actualCheckOut: actualOutVal,
+                 penaltyHours,
+                 extraHours: 0,
+                 type: 'excel'
+               });
+            }
+          });
         });
-        if (newRecords.length > 0) { await Promise.all(newRecords.map(rec => addDoc(collection(db, 'attendance'), rec))); alert(`تم رفع ${newRecords.length} سجل.`); } else alert("لم يتم العثور على بيانات مطابقة بموظفين سحابيين.");
-      } catch (err) { alert('حدث خطأ'); }
+
+        if (newRecords.length > 0) {
+          setPreviewRecords(newRecords);
+        } else {
+          alert('لم يتم العثور على بيانات مطابقة. تأكد من أن أسماء أوراق العمل أو عمود "الاسم" يطابق أسماء الموظفين.');
+        }
+      } catch (err) { alert('حدث خطأ في قراءة الملف.'); }
+      e.target.value = '';
+    };
+
+    const updatePreviewRecord = (id, field, value) => {
+      setPreviewRecords(prev => prev.map(rec => {
+        if (rec.id === id) {
+          const updated = { ...rec, [field]: value };
+          if (field === 'checkIn' || field === 'checkOut') {
+            const actualOutVal = updated.checkOut || settings.workEnd;
+            updated.actualCheckOut = actualOutVal;
+            updated.penaltyHours = calculatePenaltyHours(updated.checkIn, actualOutVal, settings.workStart, settings.workEnd);
+          }
+          return updated;
+        }
+        return rec;
+      }));
+    };
+
+    const confirmUpload = async () => {
+      if(!previewRecords || previewRecords.length === 0) return;
+      setIsUploading(true);
+      try {
+        await Promise.all(previewRecords.map(rec => {
+          const { id, empName, actualCheckOut, ...dbData } = rec;
+          dbData.checkOut = actualCheckOut;
+          dbData.timestamp = Date.now();
+          return addDoc(collection(db, 'attendance'), dbData);
+        }));
+        alert(`تم اعتماد ${previewRecords.length} سجل بنجاح.`);
+        setPreviewRecords(null);
+      } catch(e) { alert('حدث خطأ في الرفع.'); }
+      setIsUploading(false);
     };
 
     return (
       <div className="animate-fade-in card">
         <div className="card-header"><h2 className="card-title"><FileSpreadsheet /> رفع ملف إكسل</h2></div>
-        <label className="drop-zone">
-          <Upload className="drop-zone-icon" />
-          <span style={{fontSize:'1.25rem', fontWeight:'700'}}>اضغط هنا لاختيار ملف إكسل</span>
-          <input type="file" accept=".xlsx, .xls" onChange={handleFile} style={{display:'none'}} />
-        </label>
+        
+        {!previewRecords ? (
+          <label className="drop-zone">
+            <Upload className="drop-zone-icon" />
+            <span style={{fontSize:'1.25rem', fontWeight:'700'}}>اختر ملف للإكسل (معلومة: يمكن استخدام ورقة لكل موظف يحمل اسمه)</span>
+            <input type="file" accept=".xlsx, .xls" onChange={handleFile} style={{display:'none'}} />
+          </label>
+        ) : (
+          <div className="preview-container">
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem'}}>
+              <h3>مراجعة البيانات المستخرجة ({previewRecords.length} سجل)</h3>
+              <div style={{display:'flex', gap:'0.5rem'}}>
+                <button className="btn btn-secondary" onClick={() => setPreviewRecords(null)}>إلغاء</button>
+                <button className="btn btn-primary" onClick={confirmUpload} disabled={isUploading}>{isUploading ? 'جاري الرفع...' : 'حفظ واعتماد'}</button>
+              </div>
+            </div>
+            
+            <div className="table-container" style={{maxHeight:'60vh', overflowY:'auto'}}>
+              <table>
+                <thead style={{position:'sticky', top:0, zIndex:2, backgroundColor:'var(--surface)'}}>
+                  <tr><th>الموظف</th><th>التاريخ</th><th>الحضور</th><th>الانصراف</th><th>تأخير (ساعات)</th><th>ملاحظة</th></tr>
+                </thead>
+                <tbody>
+                  {previewRecords.map(rec => (
+                    <tr key={rec.id}>
+                      <td style={{fontWeight:'bold'}}>{rec.empName}</td>
+                      <td><input type="date" value={rec.date} onChange={(e)=>updatePreviewRecord(rec.id, 'date', e.target.value)} style={{width:'auto'}}/></td>
+                      <td><input type="time" value={rec.checkIn} onChange={(e)=>updatePreviewRecord(rec.id, 'checkIn', e.target.value)} style={{width:'auto'}}/></td>
+                      <td><input type="time" value={rec.checkOut} onChange={(e)=>updatePreviewRecord(rec.id, 'checkOut', e.target.value)} style={{width:'auto'}}/></td>
+                      <td style={{color: rec.penaltyHours > 0 ? 'var(--danger)' : ''}}>{rec.penaltyHours}</td>
+                      <td style={{color:'var(--text-secondary)', fontSize:'0.8rem'}}>{!rec.checkOut ? `يفترض الساعة ${settings.workEnd}` : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
