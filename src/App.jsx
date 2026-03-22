@@ -159,6 +159,10 @@ export default function App() {
 
   const handleLogin = (e) => {
     e.preventDefault();
+    if (appUsers.length === 0) {
+      alert('جاري تحميل بيانات النظام، يرجى المحاولة خلال ثوانٍ...');
+      return;
+    }
     const user = appUsers.find(u => u.username === loginForm.username && u.password === loginForm.password);
     if (user) {
       setLoggedInUser(user);
@@ -211,6 +215,8 @@ export default function App() {
       };
     });
   }, [employees, attendance, advances, settings, viewMonth]);
+  // Low-leave alert badges shown on sidebar
+  const lowLeaveAlerts = useMemo(() => stats.filter(s => parseFloat(s.remainingLeaves) < 3), [stats]);
 
   // LOGIN VIEW
   if (!loggedInUser) {
@@ -262,9 +268,6 @@ export default function App() {
   }
 
   // --- REGULAR VIEWS ---
-
-  // Low-leave alert badges shown on sidebar
-  const lowLeaveAlerts = useMemo(() => stats.filter(s => parseFloat(s.remainingLeaves) < 3), [stats]);
 
   const Dashboard = () => {
     const totalPayroll = stats.reduce((sum, s) => sum + s.netSalary, 0);
