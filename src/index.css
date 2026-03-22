@@ -580,3 +580,132 @@ tr:hover td {
     color: black !important;
   }
 }
+
+/* ============================================================
+   KPI STAT CARDS
+   ============================================================ */
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  border-radius: var(--radius-md);
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: var(--shadow-lg);
+  animation: slideIn 0.3s ease-out forwards;
+  min-width: 260px;
+  max-width: 380px;
+}
+.toast-success { background: var(--success); }
+.toast-info    { background: var(--primary); }
+.toast-warning { background: var(--warning); }
+.toast-danger  { background: var(--danger); }
+
+@keyframes slideIn {
+  from { transform: translateX(-40px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+/* ============================================================
+   PAYSLIP DROPDOWN
+   ============================================================ */
+.payslip-menu {
+  position: relative;
+}
+.payslip-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  min-width: 200px;
+  z-index: 999;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.payslip-menu:hover .payslip-dropdown {
+  display: block;
+}
+.payslip-dropdown-item {
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background 0.15s;
+}
+.payslip-dropdown-item:hover {
+  background: var(--bg-color);
+  color: var(--primary);
+}
+
+/* ============================================================
+   MOBILE RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .sidebar {
+    position: fixed;
+    right: 0;
+    top: 0;
+    height: 100vh;
+    z-index: 200;
+  }
+  .main-wrapper {
+    margin-right: 60px !important;
+    width: calc(100vw - 60px) !important;
+  }
+  .main-content {
+    padding: 1rem !important;
+  }
+  .top-header {
+    padding: 0.75rem 1rem !important;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .card {
+    padding: 1rem !important;
+  }
+  .table-container {
+    overflow-x: auto;
+  }
+  div[style*='grid-template-columns: 1fr 1fr'] {
+    grid-template-columns: 1fr !important;
+  }
+}

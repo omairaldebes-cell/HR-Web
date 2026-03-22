@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { calculatePenaltyHours, parseExcel } from './utils';
 import { db } from './firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid } from 'recharts';
+import jsPDF from 'jspdf';
 import { 
   Users, 
   Clock, 
@@ -20,7 +22,14 @@ import {
   LogOut,
   UserCog,
   Menu,
-  Printer
+  Printer,
+  BarChart2,
+  Bell,
+  Download,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle,
+  X
 } from 'lucide-react';
 
 const ARABIC_MONTHS = ['كانون الثاني', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين الأول', 'تشرين الثاني', 'كانون الأول'];
@@ -47,6 +56,7 @@ const DEFAULT_SETTINGS = {
 
 const navItems = [
   { id: 'dashboard', label: 'لوحة القيادة', icon: LayoutDashboard },
+  { id: 'analytics', label: 'التحليلات', icon: BarChart2 },
   { id: 'employees', label: 'إدارة الموظفين', icon: Users },
   { id: 'attendance', label: 'تسجيل الحضور', icon: Clock },
   { id: 'records', label: 'سجل الحضور الكامل', icon: FileText },
@@ -60,6 +70,14 @@ const navItems = [
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [profileEmpId, setProfileEmpId] = useState(null);
+  const [toasts, setToasts] = useState([]);
+  
+  const showToast = useCallback((message, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4500);
+  }, []);
   
   // Auth State
   const [loggedInUser, setLoggedInUser] = useState(() => {
@@ -231,14 +249,38 @@ export default function App() {
 
   // --- REGULAR VIEWS ---
 
-  const Dashboard = () => (
+  // Low-leave alert badges shown on sidebar
+  const lowLeaveAlerts = useMemo(() => stats.filter(s => parseFloat(s.remainingLeaves) < 3), [stats]);
+
+  const Dashboard = () => {
+    const totalPayroll = stats.reduce((sum, s) => sum + s.netSalary, 0);
+    const totalOT = stats.reduce((sum, s) => sum + s.otValue, 0);
+    const totalAdvances = stats.reduce((sum, s) => sum + s.totalAdvances, 0);
+    const totalPenaltyHours = stats.reduce((sum, s) => sum + s.monthPenaltyHours, 0);
+    return (
     <div className="animate-fade-in">
       <div className="card-header no-print">
         <h2 className="card-title"><LayoutDashboard /> لوحة القيادة</h2>
-        <div>
-          <MonthPicker value={viewMonth} onChange={setViewMonth} />
-        </div>
+        <div><MonthPicker value={viewMonth} onChange={setViewMonth} /></div>
       </div>
+
+      {/* KPI Cards */}
+      <div className="stats-grid" style={{marginBottom:'1.5rem'}}>
+        <div className="stat-card"><div className="stat-label">إجمالي كتلة الرواتب</div><div className="stat-value" style={{fontSize:'1.4rem'}}>{totalPayroll.toLocaleString()}</div><div className="stat-label">ل.س</div></div>
+        <div className="stat-card"><div className="stat-label">إجمالي العمل الإضافي</div><div className="stat-value" style={{fontSize:'1.4rem',color:'var(--success)'}}>{totalOT.toLocaleString()}</div><div className="stat-label">ل.س</div></div>
+        <div className="stat-card"><div className="stat-label">إجمالي السلف</div><div className="stat-value" style={{fontSize:'1.4rem',color:'var(--warning)'}}>{totalAdvances.toLocaleString()}</div><div className="stat-label">ل.س</div></div>
+        <div className="stat-card"><div className="stat-label">ساعات تأخير إجمالية</div><div className="stat-value" style={{fontSize:'1.4rem',color:'var(--danger)'}}>{totalPenaltyHours}</div><div className="stat-label">ساعة</div></div>
+      </div>
+
+      {/* Alerts */}
+      {lowLeaveAlerts.length > 0 && (
+        <div className="card" style={{marginBottom:'1.5rem', borderColor:'var(--warning)', borderWidth:'2px'}}>
+          <h3 className="card-title" style={{color:'var(--warning)', marginBottom:'0.75rem'}}><AlertTriangle size={18}/> تحذير: رصيد إجازات منخفض</h3>
+          <div style={{display:'flex', gap:'0.75rem', flexWrap:'wrap'}}>
+            {lowLeaveAlerts.map(s => <span key={s.id} className="badge badge-danger" style={{fontSize:'0.9rem', padding:'0.4rem 0.8rem'}}>{s.name} — {s.remainingLeaves} يوم</span>)}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h3 className="card-title" style={{ marginBottom: '1rem' }}><ListTodo /> التقرير الشهري ({viewMonth})</h3>
@@ -254,11 +296,12 @@ export default function App() {
                 <th>قيمة الإضافي</th>
                 <th>السلف المخصومة</th>
                 <th>الصافي المستحق</th>
+                <th>بروفايل</th>
               </tr>
             </thead>
             <tbody>
               {stats.length === 0 ? (
-                <tr><td colSpan="8" style={{textAlign: 'center', color: 'var(--text-secondary)'}}>لا يوجد بيانات</td></tr>
+                <tr><td colSpan="9" style={{textAlign: 'center', color: 'var(--text-secondary)'}}>&#x644;&#x627; &#x64A;&#x648;&#x62C;&#x62F; &#x628;&#x64A;&#x627;&#x646;&#x627;&#x62A;</td></tr>
               ) : (
                 stats.map(s => (
                   <tr key={s.id}>
@@ -274,6 +317,11 @@ export default function App() {
                     <td>{s.otValue.toLocaleString()} ل.س</td>
                     <td style={{color: s.totalAdvances > 0 ? 'var(--warning)' : 'inherit'}}>{s.totalAdvances.toLocaleString()} ل.س</td>
                     <td style={{fontWeight: '800', color: 'var(--primary)'}}>{s.netSalary.toLocaleString()} ل.س</td>
+                    <td>
+                      <button className="btn btn-secondary" style={{padding:'0.3rem 0.7rem'}} onClick={() => { setProfileEmpId(s.id); setActiveTab('employees'); }}>
+                        <Users size={14}/>
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -283,6 +331,69 @@ export default function App() {
       </div>
     </div>
   );
+};
+
+  /* ================================================
+     ANALYTICS VIEW
+  ================================================ */
+  const AnalyticsView = () => {
+    const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#84cc16'];
+    const salaryChartData = stats.map(s => ({ name: s.name, 'صافي': s.netSalary, 'سلف': s.totalAdvances, 'إضافي': s.otValue }));
+    const leaveChartData = stats.map(s => ({ name: s.name, value: parseFloat(s.remainingLeaves) }));
+    const penaltyChartData = stats.map(s => ({ name: s.name, 'ساعات تأخير': s.monthPenaltyHours, 'ساعات إضافي': s.monthExtraHours }));
+    return (
+      <div className="animate-fade-in" style={{display:'flex', flexDirection:'column', gap:'2rem'}}>
+        <div className="card-header" style={{padding:'0 0 1rem'}}>
+          <h2 className="card-title"><BarChart2 /> لوحة التحليلات البصرية</h2>
+          <MonthPicker value={viewMonth} onChange={setViewMonth} />
+        </div>
+
+        <div className="card">
+          <h3 className="card-title" style={{marginBottom:'1.5rem'}}><TrendingUp size={18}/> مقارنة الرواتب والسلف والإضافي</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={salaryChartData} margin={{top:5,right:10,left:10,bottom:5}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="name" tick={{fill:'var(--text-secondary)',fontSize:12}} />
+              <YAxis tick={{fill:'var(--text-secondary)',fontSize:12}} />
+              <Tooltip contentStyle={{background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text-primary)'}} />
+              <Legend />
+              <Bar dataKey="صافي" fill="#3b82f6" radius={[4,4,0,0]} />
+              <Bar dataKey="سلف" fill="#f59e0b" radius={[4,4,0,0]} />
+              <Bar dataKey="إضافي" fill="#10b981" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem'}}>
+          <div className="card">
+            <h3 className="card-title" style={{marginBottom:'1.5rem'}}>رصيد الإجازات المتبقية</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={leaveChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({name,value})=>`${name}: ${value}`}>
+                  {leaveChartData.map((_,i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Pie>
+                <Tooltip contentStyle={{background:'var(--surface)',border:'1px solid var(--border)'}} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="card">
+            <h3 className="card-title" style={{marginBottom:'1.5rem'}}>ساعات التأخير مقابل الإضافي</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={penaltyChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="name" tick={{fill:'var(--text-secondary)',fontSize:11}} />
+                <YAxis tick={{fill:'var(--text-secondary)',fontSize:11}} />
+                <Tooltip contentStyle={{background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text-primary)'}} />
+                <Legend />
+                <Bar dataKey="ساعات تأخير" fill="#ef4444" radius={[4,4,0,0]} />
+                <Bar dataKey="ساعات إضافي" fill="#10b981" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const EmployeesView = () => {
     const [name, setName] = useState('');
@@ -343,25 +454,35 @@ export default function App() {
           </form>
         </div>
 
-        <div className="card">
-          <h2 className="card-title" style={{marginBottom: '1rem'}}><Users /> قائمة الموظفين</h2>
-          <div className="table-container">
-            <table>
-              <thead><tr><th>الاسم</th><th>الراتب (ل.س)</th><th>رصيد الإجازة</th><th>إجراءات</th></tr></thead>
-              <tbody>
-                {employees.map(emp => (
-                  <tr key={emp.id}>
-                    <td style={{fontWeight: '700'}}>{emp.name}</td><td>{parseFloat(emp.salary).toLocaleString()}</td><td>{emp.totalLeaves}</td>
-                    <td>
-                      <button onClick={()=>handleEdit(emp)} className="btn btn-secondary" style={{padding:'0.4rem 0.8rem', marginLeft:'0.5rem'}}><Edit size={16} /> تعديل</button>
-                      <button onClick={()=>handleDelete(emp.id)} className="btn btn-danger" style={{padding:'0.4rem 0.8rem'}}><Trash2 size={16} /> حذف</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Employee Profiles */}
+        {employees.map(emp => {
+          if (profileEmpId && profileEmpId !== emp.id) return null;
+          const empStats = stats.find(s => s.id === emp.id);
+          const empAttendance = attendance.filter(a => a.employeeId === emp.id).length;
+          const empAdvances = advances.filter(a => a.employeeId === emp.id).reduce((s,a) => s + (parseFloat(a.amount)||0), 0);
+          return (
+            <div key={emp.id} className="card" style={{border: profileEmpId === emp.id ? '2px solid var(--primary)' : ''}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem'}}>
+                <div style={{display:'flex', gap:'1rem', alignItems:'center'}}>
+                  <div style={{width:'52px',height:'52px',borderRadius:'50%',background:'var(--primary)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1.4rem',fontWeight:'900',color:'white',flexShrink:0}}>
+                    {emp.name.charAt(0)}
+                  </div>
+                  <div>
+                    <div style={{fontWeight:'800', fontSize:'1.1rem'}}>{emp.name}</div>
+                    <div style={{color:'var(--text-secondary)', fontSize:'0.85rem'}}>راتب: {parseFloat(emp.salary).toLocaleString()} ل.س &nbsp;|  سجلات: {empAttendance} &nbsp;|  سلف: {empAdvances.toLocaleString()} ل.س</div>
+                  </div>
+                </div>
+                <div style={{display:'flex', gap:'0.5rem', flexWrap:'wrap'}}>
+                  <span className={`badge ${empStats && empStats.remainingLeaves < 3 ? 'badge-danger' : 'badge-success'}`} style={{fontSize:'0.85rem', padding:'0.4rem 0.8rem'}}>إجازات متبقية: {empStats?.remainingLeaves ?? '...'} يوم</span>
+                  <button onClick={() => handleEdit(emp)} className="btn btn-secondary" style={{padding:'0.4rem 0.8rem'}}><Edit size={14}/> تعديل</button>
+                  <button onClick={() => handleDelete(emp.id)} className="btn btn-danger" style={{padding:'0.4rem 0.8rem'}}><Trash2 size={14}/> حذف</button>
+                  <button onClick={() => { setProfileEmpId(profileEmpId === emp.id ? null : emp.id); setActiveTab('records'); }} className="btn btn-outline" style={{padding:'0.4rem 0.8rem'}}><FileText size={14}/> سجل الحضور</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {profileEmpId && <button className="btn btn-outline" style={{alignSelf:'flex-start'}} onClick={() => setProfileEmpId(null)}>عرض جميع الموظفين</button>}
       </div>
     );
   };
@@ -890,9 +1011,50 @@ export default function App() {
     );
   }
 
+  /* =================================================
+     PDF PAYSLIP GENERATOR
+  ================================================= */
+  const generatePayslip = (empStat) => {
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    pdf.setFont('helvetica');
+    const pageW = pdf.internal.pageSize.getWidth();
+    pdf.setFillColor(30, 41, 59);
+    pdf.rect(0, 0, pageW, 30, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(16);
+    pdf.text('HR - Payslip', pageW / 2, 18, { align: 'center' });
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(12);
+    const rows = [
+      ['Employee', empStat.name],
+      ['Month', viewMonth],
+      ['Base Salary', `${parseFloat(empStat.salary).toLocaleString()} SYP`],
+      ['OT Hours', `${empStat.monthExtraHours} h`],
+      ['OT Value', `${empStat.otValue.toLocaleString()} SYP`],
+      ['Late Hours', `${empStat.monthPenaltyHours} h`],
+      ['Advances Deducted', `${empStat.totalAdvances.toLocaleString()} SYP`],
+      ['Leave Balance', `${empStat.remainingLeaves} days`],
+      ['NET SALARY', `${empStat.netSalary.toLocaleString()} SYP`],
+    ];
+    let y = 45;
+    rows.forEach(([label, val], i) => {
+      if (i === rows.length - 1) { pdf.setFontSize(14); pdf.setFont('helvetica', 'bold'); }
+      pdf.text(label + ':', 20, y);
+      pdf.text(String(val), pageW - 20, y, { align: 'right' });
+      pdf.setDrawColor(220, 220, 220);
+      pdf.line(20, y + 2, pageW - 20, y + 2);
+      y += 12;
+    });
+    pdf.setFontSize(9); pdf.setTextColor(150,150,150);
+    pdf.text(`Generated: ${new Date().toLocaleDateString('ar-SY')}`, pageW/2, y + 10, { align: 'center' });
+    pdf.save(`payslip_${empStat.name}_${viewMonth}.pdf`);
+    showToast(`تم تحميل كشف راتب ${empStat.name}`, 'success');
+  };
+
   const renderActiveView = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard />;
+      case 'analytics': return <AnalyticsView />;
       case 'employees': return <EmployeesView />;
       case 'attendance': return <AttendanceView />;
       case 'records': return <RecordsView />;
@@ -907,11 +1069,12 @@ export default function App() {
 
   // Filter nav items based on permissions
   const allowedNavItems = navItems.filter(item => 
-    loggedInUser?.permissions?.includes(item.id) || (loggedInUser?.role === 'admin' && item.id === 'users') // Ensure admins always see users implicitly if checked, but users list covers it.
+    loggedInUser?.permissions?.includes(item.id) || item.id === 'analytics' || (loggedInUser?.role === 'admin' && item.id === 'users')
   );
 
   return (
-    <div className="app-container">
+    <>
+      <div className="app-container">
       {/* SIDEBAR */}
       <aside 
         className={`sidebar ${isSidebarOpen ? 'expanded' : ''}`}
@@ -957,7 +1120,31 @@ export default function App() {
       <div className="main-wrapper">
         <header className="top-header">
           <div className="header-title">
-             نظام إدارة الموارد البشرية (النسخة السحابية)
+            نظام إدارة الموارد البشرية
+          </div>
+          <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>
+            {lowLeaveAlerts.length > 0 && (
+              <div style={{position:'relative', cursor:'pointer'}} title="تحذير: إجازات منخفضة">
+                <Bell size={22} style={{color:'var(--warning)'}}/>
+                <span style={{position:'absolute',top:'-6px',left:'-6px',background:'var(--danger)',color:'white',borderRadius:'50%',width:'18px',height:'18px',fontSize:'0.65rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'bold'}}>{lowLeaveAlerts.length}</span>
+              </div>
+            )}
+            {/* Payslip quick access */}
+            {stats.length > 0 && (
+              <div style={{position:'relative'}} className="payslip-menu">
+                <button className="btn btn-outline" style={{padding:'0.4rem 0.8rem', gap:'0.4rem', display:'flex', alignItems:'center'}}>
+                  <Download size={16}/> كشف راتب
+                </button>
+                <div className="payslip-dropdown">
+                  {stats.map(s => (
+                    <div key={s.id} className="payslip-dropdown-item" onClick={() => generatePayslip(s)}>
+                      <Download size={14}/> {s.name}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{fontSize:'0.85rem', color:'var(--text-secondary)'}}><UserCog size={16} style={{verticalAlign:'middle', marginLeft:'4px'}}/>{loggedInUser.username}</div>
           </div>
         </header>
 
@@ -966,5 +1153,17 @@ export default function App() {
         </main>
       </div>
     </div>
+
+    {/* Toast Notifications */}
+    <div style={{position:'fixed', bottom:'1.5rem', left:'1.5rem', display:'flex', flexDirection:'column', gap:'0.5rem', zIndex:9999}}>
+      {toasts.map(t => (
+        <div key={t.id} className={`toast toast-${t.type}`}>
+          {t.type === 'success' ? <CheckCircle size={16}/> : <Bell size={16}/>}
+          <span>{t.message}</span>
+          <button onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))} style={{background:'none',border:'none',cursor:'pointer',color:'inherit',marginRight:'auto'}}><X size={14}/></button>
+        </div>
+      ))}
+    </div>
+    </>
   );
 }
