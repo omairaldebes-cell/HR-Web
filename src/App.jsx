@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { calculatePenaltyHours, parseExcel } from './utils';
 import { db } from './firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line, CartesianGrid } from 'recharts';
-import jsPDF from 'jspdf';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 import { 
   Users, 
   Clock, 
@@ -337,10 +336,7 @@ export default function App() {
      ANALYTICS VIEW
   ================================================ */
   const AnalyticsView = () => {
-    const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#84cc16'];
     const salaryChartData = stats.map(s => ({ name: s.name, 'صافي': s.netSalary, 'سلف': s.totalAdvances, 'إضافي': s.otValue }));
-    const leaveChartData = stats.map(s => ({ name: s.name, value: parseFloat(s.remainingLeaves) }));
-    const penaltyChartData = stats.map(s => ({ name: s.name, 'ساعات تأخير': s.monthPenaltyHours, 'ساعات إضافي': s.monthExtraHours }));
     return (
       <div className="animate-fade-in" style={{display:'flex', flexDirection:'column', gap:'2rem'}}>
         <div className="card-header" style={{padding:'0 0 1rem'}}>
@@ -350,7 +346,7 @@ export default function App() {
 
         <div className="card">
           <h3 className="card-title" style={{marginBottom:'1.5rem'}}><TrendingUp size={18}/> مقارنة الرواتب والسلف والإضافي</h3>
-          <ResponsiveContainer width="100%" height={280}>
+          <ResponsiveContainer width="100%" height={320}>
             <BarChart data={salaryChartData} margin={{top:5,right:10,left:10,bottom:5}}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="name" tick={{fill:'var(--text-secondary)',fontSize:12}} />
@@ -362,34 +358,6 @@ export default function App() {
               <Bar dataKey="إضافي" fill="#10b981" radius={[4,4,0,0]} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
-
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem'}}>
-          <div className="card">
-            <h3 className="card-title" style={{marginBottom:'1.5rem'}}>رصيد الإجازات المتبقية</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={leaveChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({name,value})=>`${name}: ${value}`}>
-                  {leaveChartData.map((_,i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={{background:'var(--surface)',border:'1px solid var(--border)'}} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="card">
-            <h3 className="card-title" style={{marginBottom:'1.5rem'}}>ساعات التأخير مقابل الإضافي</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={penaltyChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="name" tick={{fill:'var(--text-secondary)',fontSize:11}} />
-                <YAxis tick={{fill:'var(--text-secondary)',fontSize:11}} />
-                <Tooltip contentStyle={{background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text-primary)'}} />
-                <Legend />
-                <Bar dataKey="ساعات تأخير" fill="#ef4444" radius={[4,4,0,0]} />
-                <Bar dataKey="ساعات إضافي" fill="#10b981" radius={[4,4,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
         </div>
       </div>
     );
@@ -1011,45 +979,6 @@ export default function App() {
     );
   }
 
-  /* =================================================
-     PDF PAYSLIP GENERATOR
-  ================================================= */
-  const generatePayslip = (empStat) => {
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    pdf.setFont('helvetica');
-    const pageW = pdf.internal.pageSize.getWidth();
-    pdf.setFillColor(30, 41, 59);
-    pdf.rect(0, 0, pageW, 30, 'F');
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(16);
-    pdf.text('HR - Payslip', pageW / 2, 18, { align: 'center' });
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFontSize(12);
-    const rows = [
-      ['Employee', empStat.name],
-      ['Month', viewMonth],
-      ['Base Salary', `${parseFloat(empStat.salary).toLocaleString()} SYP`],
-      ['OT Hours', `${empStat.monthExtraHours} h`],
-      ['OT Value', `${empStat.otValue.toLocaleString()} SYP`],
-      ['Late Hours', `${empStat.monthPenaltyHours} h`],
-      ['Advances Deducted', `${empStat.totalAdvances.toLocaleString()} SYP`],
-      ['Leave Balance', `${empStat.remainingLeaves} days`],
-      ['NET SALARY', `${empStat.netSalary.toLocaleString()} SYP`],
-    ];
-    let y = 45;
-    rows.forEach(([label, val], i) => {
-      if (i === rows.length - 1) { pdf.setFontSize(14); pdf.setFont('helvetica', 'bold'); }
-      pdf.text(label + ':', 20, y);
-      pdf.text(String(val), pageW - 20, y, { align: 'right' });
-      pdf.setDrawColor(220, 220, 220);
-      pdf.line(20, y + 2, pageW - 20, y + 2);
-      y += 12;
-    });
-    pdf.setFontSize(9); pdf.setTextColor(150,150,150);
-    pdf.text(`Generated: ${new Date().toLocaleDateString('ar-SY')}`, pageW/2, y + 10, { align: 'center' });
-    pdf.save(`payslip_${empStat.name}_${viewMonth}.pdf`);
-    showToast(`تم تحميل كشف راتب ${empStat.name}`, 'success');
-  };
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -1127,21 +1056,6 @@ export default function App() {
               <div style={{position:'relative', cursor:'pointer'}} title="تحذير: إجازات منخفضة">
                 <Bell size={22} style={{color:'var(--warning)'}}/>
                 <span style={{position:'absolute',top:'-6px',left:'-6px',background:'var(--danger)',color:'white',borderRadius:'50%',width:'18px',height:'18px',fontSize:'0.65rem',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'bold'}}>{lowLeaveAlerts.length}</span>
-              </div>
-            )}
-            {/* Payslip quick access */}
-            {stats.length > 0 && (
-              <div style={{position:'relative'}} className="payslip-menu">
-                <button className="btn btn-outline" style={{padding:'0.4rem 0.8rem', gap:'0.4rem', display:'flex', alignItems:'center'}}>
-                  <Download size={16}/> كشف راتب
-                </button>
-                <div className="payslip-dropdown">
-                  {stats.map(s => (
-                    <div key={s.id} className="payslip-dropdown-item" onClick={() => generatePayslip(s)}>
-                      <Download size={14}/> {s.name}
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
             <div style={{fontSize:'0.85rem', color:'var(--text-secondary)'}}><UserCog size={16} style={{verticalAlign:'middle', marginLeft:'4px'}}/>{loggedInUser.username}</div>
