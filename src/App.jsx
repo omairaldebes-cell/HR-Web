@@ -495,6 +495,8 @@ export default function App() {
     const [filterDateStart, setFilterDateStart] = useState('');
     const [filterDateEnd, setFilterDateEnd] = useState('');
     const [editId, setEditId] = useState(null); const [editData, setEditData] = useState({ checkIn: '', checkOut: '', extraHours: 0 });
+    const [showPrintModal, setShowPrintModal] = useState(false);
+    const [printMode, setPrintMode] = useState(null); // null | 'detailed' | 'issues'
 
     const handleEdit = async (rec) => {
       if (editId === rec.id) {
@@ -514,6 +516,22 @@ export default function App() {
         const passEnd = filterDateEnd ? rec.date <= filterDateEnd : true;
         return passEmp && passStart && passEnd;
       });
+
+    // Records that have late hours OR are leave type
+    const issuesOnly = filtered.filter(rec => (rec.penaltyHours > 0) || rec.type === 'leave');
+
+    // Which rows to show in print
+    const printRows = printMode === 'issues' ? issuesOnly : filtered;
+
+    const triggerPrint = (mode) => {
+      setPrintMode(mode);
+      setShowPrintModal(false);
+      // Give React a tick to re-render with new printRows, then print
+      setTimeout(() => {
+        window.onafterprint = () => setPrintMode(null);
+        window.print();
+      }, 80);
+    };
 
     const isSingleEmployee = filterEmp !== '';
     const selectedEmp = isSingleEmployee ? employees.find(e => e.id === filterEmp) : null;
@@ -558,9 +576,46 @@ export default function App() {
 
     return (
       <div className="animate-fade-in card print-card">
+
+        {/* PRINT OPTIONS MODAL */}
+        {showPrintModal && (
+          <div className="modal-overlay" onClick={() => setShowPrintModal(false)}>
+            <div className="modal-box" onClick={e => e.stopPropagation()}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem'}}>
+                <h3 style={{margin:0, color:'var(--text-primary)'}}><Printer size={18} style={{verticalAlign:'middle', marginLeft:'6px'}}/> خيارات الطباعة</h3>
+                <button onClick={() => setShowPrintModal(false)} className="btn btn-secondary" style={{padding:'0.3rem 0.6rem'}}><X size={16}/></button>
+              </div>
+              <div style={{display:'flex', flexDirection:'column', gap:'0.75rem'}}>
+                <button
+                  className="btn btn-primary"
+                  style={{padding:'0.85rem 1.5rem', fontSize:'1rem', display:'flex', alignItems:'center', gap:'0.75rem', justifyContent:'flex-start'}}
+                  onClick={() => triggerPrint('detailed')}
+                >
+                  <FileText size={20}/>
+                  <div style={{textAlign:'right'}}>
+                    <div>طباعة السجل التفصيلي</div>
+                    <div style={{fontSize:'0.8rem', opacity:0.85, fontWeight:'400'}}>جميع السجلات المفلترة ({filtered.length} سجل)</div>
+                  </div>
+                </button>
+                <button
+                  className="btn btn-outline"
+                  style={{padding:'0.85rem 1.5rem', fontSize:'1rem', display:'flex', alignItems:'center', gap:'0.75rem', justifyContent:'flex-start', borderColor:'var(--danger)', color:'var(--danger)'}}
+                  onClick={() => triggerPrint('issues')}
+                >
+                  <AlertTriangle size={20}/>
+                  <div style={{textAlign:'right'}}>
+                    <div>طباعة سجلات التأخير والإجازات فقط</div>
+                    <div style={{fontSize:'0.8rem', opacity:0.75, fontWeight:'400'}}>السجلات التي تحوي تأخير أو إجازة ({issuesOnly.length} سجل)</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="card-header no-print">
           <h2 className="card-title"><FileText /> سجل الحضور الكامل</h2>
-          <button onClick={() => window.print()} className="btn btn-outline" style={{display:'flex', alignItems:'center', gap:'0.5rem'}}><Printer size={18}/> طباعة</button>
+          <button onClick={() => setShowPrintModal(true)} className="btn btn-outline" style={{display:'flex', alignItems:'center', gap:'0.5rem'}}><Printer size={18}/> طباعة</button>
         </div>
         <div className="stats-grid no-print" style={{marginBottom: '1rem', backgroundColor: 'var(--bg-color)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)'}}>
           <div className="form-group" style={{marginBottom: 0}}>
@@ -579,6 +634,7 @@ export default function App() {
             <h3 style={{marginBottom: '1rem', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem'}}>
               تقرير الموظف: {summary.name} 
               {filterDateStart && filterDateEnd ? ` (من ${filterDateStart} إلى ${filterDateEnd})` : ''}
+              {printMode === 'issues' && <span style={{marginRight:'0.75rem', fontSize:'0.85rem', color:'var(--danger)', fontWeight:'400'}}>(يعرض سجلات التأخير والإجازات فقط)</span>}
             </h3>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', fontWeight: 'bold'}}>
                <div>الراتب الأساسي:<br/><span style={{color: 'var(--text-secondary)', fontSize:'1.2rem'}}>{summary.baseSalary.toLocaleString()} ل.س</span></div>
@@ -596,13 +652,13 @@ export default function App() {
 
         <div className="table-container">
           <table>
-            <thead><tr><th>الموظف</th><th>التاريخ</th><th>النوع</th><th>الحضور</th><th>الانصراف</th><th>إضافي</th><th>تأخير</th><th>إجراءات</th></tr></thead>
+            <thead><tr><th>الموظف</th><th>التاريخ</th><th>النوع</th><th>الحضور</th><th>الانصراف</th><th>إضافي</th><th>تأخير</th><th className="no-print">إجراءات</th></tr></thead>
             <tbody>
-              {filtered.map(rec => {
+              {printRows.map(rec => {
                 const emp = employees.find(e => e.id === rec.employeeId);
                 const isEditing = editId === rec.id;
                 return (
-                  <tr key={rec.id}>
+                  <tr key={rec.id} style={{background: rec.type === 'leave' ? 'rgba(245,158,11,0.07)' : rec.penaltyHours > 0 ? 'rgba(239,68,68,0.05)' : ''}}>
                     <td style={{fontWeight:'700'}}>{emp?.name || 'محذوف'}</td><td>{rec.date}</td><td>{rec.type==='leave'?'إجازة':rec.type==='excel'?'إكسل':'يدوي'}</td>
                     {isEditing ? (
                       <>
@@ -613,17 +669,17 @@ export default function App() {
                       </>
                     ) : (
                       <>
-                        <td>{rec.checkIn || (rec.type==='leave'?'-':'غير مسجل')}</td><td>{rec.checkOut || (rec.type==='leave'?'-':'غير مسجل')}</td><td>{rec.extraHours||0}</td><td style={{color: rec.penaltyHours > 0 ? 'var(--danger)' : 'inherit'}}>{rec.penaltyHours} ساعة</td>
+                        <td>{rec.checkIn || (rec.type==='leave'?'-':'غير مسجل')}</td><td>{rec.checkOut || (rec.type==='leave'?'-':'غير مسجل')}</td><td>{rec.extraHours||0}</td><td style={{color: rec.penaltyHours > 0 ? 'var(--danger)' : 'inherit', fontWeight: rec.penaltyHours > 0 ? '700' : '400'}}>{rec.penaltyHours} ساعة</td>
                       </>
                     )}
-                    <td>
+                    <td className="no-print">
                       {rec.type !== 'leave' && <button onClick={()=>handleEdit(rec)} className={`btn ${isEditing?'btn-success':'btn-secondary'}`} style={{padding:'0.3rem 0.6rem',marginLeft:'0.5rem',background:isEditing?'var(--success)':''}}>{isEditing?'حفظ':'تعديل'}</button>}
                       <button onClick={()=>handleDelete(rec.id)} className="btn btn-danger" style={{padding:'0.3rem 0.6rem'}}><Trash2 size={16} /></button>
                     </td>
                   </tr>
                 )
               })}
-              {filtered.length === 0 && <tr><td colSpan="8" style={{textAlign:'center'}}>لا يوجد سجلات</td></tr>}
+              {printRows.length === 0 && <tr><td colSpan="8" style={{textAlign:'center'}}>لا يوجد سجلات</td></tr>}
             </tbody>
           </table>
         </div>
