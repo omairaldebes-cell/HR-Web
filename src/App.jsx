@@ -242,6 +242,21 @@ export default function App() {
             <button type="submit" className="btn btn-primary" style={{width: '100%'}}>دخول</button>
           </form>
         </div>
+
+        <footer style={{
+          position: 'absolute',
+          bottom: '20px',
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          fontSize: '12px',
+          color: 'var(--text-secondary)',
+          opacity: 0.8,
+          lineHeight: '1.6'
+        }}>
+          <div>Developed by Omair Aldebes | تم تطويره بواسطة عمير الدبس</div>
+          <div>© 2026 All Rights Reserved | جميع الحقوق محفوظة © 2026</div>
+        </footer>
       </div>
     );
   }
