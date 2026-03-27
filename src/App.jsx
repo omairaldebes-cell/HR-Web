@@ -474,44 +474,237 @@ export default function App() {
   };
 
   const AttendanceView = () => {
-    const [empId, setEmpId] = useState(''); const [date, setDate] = useState('');
-    const [checkIn, setCheckIn] = useState(settings.workStart || '09:00'); const [checkOut, setCheckOut] = useState('');
+    const [empId, setEmpId] = useState(''); 
+    const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+    const [checkIn, setCheckIn] = useState(settings.workStart || '09:00'); 
+    const [checkOut, setCheckOut] = useState('');
     const [extraHours, setExtraHours] = useState(0);
+    
+    // Bulk Mode State
+    const [isBulkMode, setIsBulkMode] = useState(false);
+    const [selectedEmps, setSelectedEmps] = useState([]);
 
     const handleAdd = async (e) => {
       e.preventDefault();
       if (!empId || !date) return;
       const actualCheckOut = checkOut || settings.workEnd;
       const penaltyHours = calculatePenaltyHours(checkIn, actualCheckOut, settings.workStart, settings.workEnd);
-      await addDoc(collection(db, 'attendance'), { employeeId: empId, date, checkIn, checkOut: actualCheckOut, penaltyHours, extraHours: parseFloat(extraHours) || 0, type: 'manual', timestamp: Date.now() });
-      alert(`تم بنجاح. التأخير: ${penaltyHours} ساعة.`);
-      setDate(''); setCheckIn(settings.workStart || '09:00'); setCheckOut(''); setEmpId(''); setExtraHours(0);
+      await addDoc(collection(db, 'attendance'), { 
+        employeeId: empId, 
+        date, 
+        checkIn, 
+        checkOut: actualCheckOut, 
+        penaltyHours, 
+        extraHours: parseFloat(extraHours) || 0, 
+        type: 'manual', 
+        timestamp: Date.now() 
+      });
+      showToast(`تم إضافة سجل ${employees.find(e=>e.id===empId)?.name} بنجاح`, 'success');
+      setEmpId(''); setCheckIn(settings.workStart || '09:00'); setCheckOut(''); setExtraHours(0);
+    };
+
+    const handleBulkAction = async (actionType) => {
+      if (selectedEmps.length === 0) return alert('يرجى اختيار موظفين أولاً');
+      if (!date) return alert('يرجى اختيار التاريخ');
+      
+      const promises = selectedEmps.map(id => {
+        if (actionType === 'present') {
+          const actualCheckOut = settings.workEnd;
+          const penaltyHours = calculatePenaltyHours(settings.workStart, actualCheckOut, settings.workStart, settings.workEnd);
+          return addDoc(collection(db, 'attendance'), {
+            employeeId: id,
+            date,
+            checkIn: settings.workStart,
+            checkOut: actualCheckOut,
+            penaltyHours,
+            extraHours: 0,
+            type: 'manual',
+            timestamp: Date.now()
+          });
+        } else {
+          // Leave
+          return addDoc(collection(db, 'attendance'), {
+            employeeId: id,
+            date,
+            checkIn: '',
+            checkOut: '',
+            penaltyHours: settings.hoursPerLeaveDay,
+            extraHours: 0,
+            type: 'leave',
+            timestamp: Date.now()
+          });
+        }
+      });
+
+      await Promise.all(promises);
+      showToast(`تم تنفيذ العملية لـ ${selectedEmps.length} موظف بنجاح`, 'success');
+      setSelectedEmps([]);
+    };
+
+    const toggleSelectAll = () => {
+      if (selectedEmps.length === employees.length) setSelectedEmps([]);
+      else setSelectedEmps(employees.map(e => e.id));
     };
 
     return (
       <div className="animate-fade-in card">
-        <h2 className="card-title" style={{marginBottom: '1.5rem'}}><Clock /> إضافة سجل حضور وعمل إضافي</h2>
-        <form onSubmit={handleAdd}>
-          <div className="stats-grid">
-            <div className="form-group">
-              <label>الموظف</label>
-              <select value={empId} onChange={e=>setEmpId(e.target.value)} required><option value="">-- اختر --</option>{employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem'}}>
+          <h2 className="card-title" style={{margin:0}}><Clock /> تسجيل حضور وعمل إضافي</h2>
+          <button 
+            className={`btn ${isBulkMode ? 'btn-primary' : 'btn-outline'}`} 
+            onClick={() => setIsBulkMode(!isBulkMode)}
+            style={{display:'flex', alignItems:'center', gap:'0.5rem'}}
+          >
+            <Users size={18}/> {isBulkMode ? 'العودة للإضافة الفردية' : 'إضافة جماعية'}
+          </button>
+        </div>
+
+        {!isBulkMode ? (
+          <form onSubmit={handleAdd}>
+            <div className="stats-grid">
+              <div className="form-group">
+                <label>الموظف</label>
+                <select value={empId} onChange={e=>setEmpId(e.target.value)} required>
+                  <option value="">-- اختر --</option>
+                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label>التاريخ</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} required /></div>
+              <div className="form-group"><label>الحضور الفعلي</label><input type="time" value={checkIn} onChange={e=>setCheckIn(e.target.value)} /></div>
+              <div className="form-group"><label>الانصراف الفعلي</label><input type="time" value={checkOut} onChange={e=>setCheckOut(e.target.value)} placeholder={settings.workEnd} /></div>
+              <div className="form-group"><label>عمل إضافي (ساعات)</label><input type="number" step="0.5" value={extraHours} onChange={e=>setExtraHours(e.target.value)} /></div>
             </div>
-            <div className="form-group"><label>التاريخ</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} required /></div>
-            <div className="form-group"><label>الحضور الفعلي</label><input type="time" value={checkIn} onChange={e=>setCheckIn(e.target.value)} /></div>
-            <div className="form-group"><label>الانصراف الفعلي</label><input type="time" value={checkOut} onChange={e=>setCheckOut(e.target.value)} /></div>
-            <div className="form-group"><label>عمل إضافي (ساعات)</label><input type="number" step="0.5" value={extraHours} onChange={e=>setExtraHours(e.target.value)} /></div>
+            <button type="submit" className="btn btn-primary" style={{marginTop: '1rem'}}>حفظ السجل</button>
+          </form>
+        ) : (
+          <div>
+            <div className="form-group" style={{maxWidth:'300px', marginBottom:'1.5rem'}}>
+              <label>التاريخ المختار</label>
+              <input type="date" value={date} onChange={e=>setDate(e.target.value)} required />
+            </div>
+
+            <div className="table-container" style={{maxHeight:'400px', overflowY:'auto', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', marginBottom:'1.5rem'}}>
+              <table style={{margin:0}}>
+                <thead style={{position:'sticky', top:0, zIndex:1, background:'var(--surface)'}}>
+                  <tr>
+                    <th style={{width:'40px'}}><input type="checkbox" checked={selectedEmps.length === employees.length && employees.length > 0} onChange={toggleSelectAll} /></th>
+                    <th>اسم الموظف</th>
+                    <th>الراتب الأساسي</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map(emp => (
+                    <tr key={emp.id} style={{cursor:'pointer'}} onClick={() => {
+                      if (selectedEmps.includes(emp.id)) setSelectedEmps(selectedEmps.filter(id => id !== emp.id));
+                      else setSelectedEmps([...selectedEmps, emp.id]);
+                    }}>
+                      <td><input type="checkbox" checked={selectedEmps.includes(emp.id)} readOnly onClick={e => e.stopPropagation()} /></td>
+                      <td style={{fontWeight:'700'}}>{emp.name}</td>
+                      <td>{parseFloat(emp.salary).toLocaleString()} ل.س</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{display:'flex', gap:'1rem', flexWrap:'wrap'}}>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => handleBulkAction('present')}
+                style={{display:'flex', alignItems:'center', gap:'0.5rem', flex:1}}
+              >
+                <CheckCircle size={18}/> تسجيل حضور (الدوام الافتراضي) للـ {selectedEmps.length} موظف
+              </button>
+              <button 
+                className="btn btn-warning" 
+                onClick={() => handleBulkAction('leave')}
+                style={{display:'flex', alignItems:'center', gap:'0.5rem', flex:1}}
+              >
+                <CalendarCheck size={18}/> تسجيل إجازة للـ {selectedEmps.length} موظف
+              </button>
+            </div>
           </div>
-          <button type="submit" className="btn btn-primary" style={{marginTop: '1rem'}}>حفظ السجل</button>
-        </form>
+        )}
+      </div>
+    );
+  };
+
+  const AttendanceCalendar = ({ employeeId, month, attendanceRecords, employees, settings }) => {
+    if (!employeeId) return <div style={{textAlign:'center', padding:'2rem', color:'var(--text-secondary)'}}>الرجاء اختيار موظف لعرض التقويم</div>;
+    
+    const emp = employees.find(e => e.id === employeeId);
+    const workDays = emp?.workDays || [0, 1, 2, 3, 4];
+    
+    const [year, monthNum] = month.split('-').map(Number);
+    const daysInMonth = new Date(year, monthNum, 0).getDate();
+    const firstDayOfMonth = new Date(year, monthNum - 1, 1).getDay();
+    
+    const days = [];
+    for (let i = 0; i < firstDayOfMonth; i++) days.push(null);
+    for (let d = 1; d <= daysInMonth; d++) days.push(d);
+
+    const dayLabels = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
+
+    return (
+      <div className="calendar-container animate-fade-in" style={{marginTop:0}}>
+        <div className="calendar-grid">
+          {dayLabels.map(l => <div key={l} className="calendar-day-header">{l}</div>)}
+          {days.map((d, i) => {
+            if (d === null) return <div key={`empty-${i}`} className="calendar-day empty"></div>;
+            
+            const dateStr = `${year}-${String(monthNum).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const record = attendanceRecords.find(r => r.date === dateStr && r.employeeId === employeeId);
+            
+            let statusClass = '';
+            let tooltip = '';
+            if (record) {
+              if (record.type === 'leave') { statusClass = 'status-leave'; tooltip = 'إجازة'; }
+              else if (record.penaltyHours > 0) { statusClass = 'status-late'; tooltip = `تأخير: ${record.penaltyHours} ساعة`; }
+              else { statusClass = 'status-present'; tooltip = 'حاضر'; }
+            } else {
+              const dayOfWeek = new Date(year, monthNum - 1, d).getDay();
+              const isWorkDay = workDays.includes(dayOfWeek);
+              const isPast = new Date(year, monthNum - 1, d) < new Date().setHours(0,0,0,0);
+              if (isWorkDay && isPast) { statusClass = 'status-absent'; tooltip = 'غياب'; }
+            }
+
+            return (
+              <div key={d} className={`calendar-day ${statusClass}`} title={tooltip}>
+                <span className="day-number">{d}</span>
+                {record && record.penaltyHours > 0 && <span className="penalty-mini">{record.penaltyHours}h</span>}
+              </div>
+            );
+          })}
+        </div>
+        <div className="calendar-legend">
+          <div style={{display:'flex', alignItems:'center', gap:'0.4rem'}}><div style={{width:'12px',height:'12px',background:'var(--success)',borderRadius:'2px'}}></div> حاضر</div>
+          <div style={{display:'flex', alignItems:'center', gap:'0.4rem'}}><div style={{width:'12px',height:'12px',background:'var(--warning)',borderRadius:'2px'}}></div> تأخير</div>
+          <div style={{display:'flex', alignItems:'center', gap:'0.4rem'}}><div style={{width:'12px',height:'12px',background:'var(--primary)',borderRadius:'2px'}}></div> إجازة</div>
+          <div style={{display:'flex', alignItems:'center', gap:'0.4rem'}}><div style={{width:'12px',height:'12px',background:'var(--danger)',borderRadius:'2px'}}></div> غياب</div>
+          <div style={{display:'flex', alignItems:'center', gap:'0.4rem', marginRight:'auto'}}><AlertTriangle size={14} style={{color:'var(--text-secondary)'}}/> الغياب يتم تقديره بناءً على أيام العمل الافتراضية</div>
+        </div>
       </div>
     );
   };
 
   const RecordsView = () => {
     const [filterEmp, setFilterEmp] = useState(''); 
-    const [filterDateStart, setFilterDateStart] = useState('');
-    const [filterDateEnd, setFilterDateEnd] = useState('');
+    const [viewMode, setViewMode] = useState('table'); // 'table' | 'calendar'
+    const [filterMonth, setFilterMonth] = useState(() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    });
+
+    const [filterDateStart, setFilterDateStart] = useState(() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    });
+    const [filterDateEnd, setFilterDateEnd] = useState(() => {
+      const d = new Date();
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    });
+
     const [editId, setEditId] = useState(null); const [editData, setEditData] = useState({ checkIn: '', checkOut: '', extraHours: 0 });
     const [showPrintModal, setShowPrintModal] = useState(false);
     const [printMode, setPrintMode] = useState(null); // null | 'detailed' | 'issues'
@@ -521,30 +714,35 @@ export default function App() {
         const penaltyHours = calculatePenaltyHours(editData.checkIn, editData.checkOut, settings.workStart, settings.workEnd);
         await updateDoc(doc(db, 'attendance', rec.id), { checkIn: editData.checkIn, checkOut: editData.checkOut, extraHours: parseFloat(editData.extraHours) || 0, penaltyHours });
         setEditId(null);
+        showToast('تم تحديث السجل بنجاح', 'success');
       } else {
         setEditId(rec.id); setEditData({ checkIn: rec.checkIn||'', checkOut: rec.checkOut||'', extraHours: rec.extraHours||0 });
       }
     };
 
-    const handleDelete = async(id) => window.confirm('متأكد من عملية الحذف؟') && await deleteDoc(doc(db, 'attendance', id));
+    const handleDelete = async(id) => {
+      if (window.confirm('متأكد من عملية الحذف؟')) {
+        await deleteDoc(doc(db, 'attendance', id));
+        showToast('تم حذف السجل', 'info');
+      }
+    };
 
     const filtered = attendance.slice().sort((a,b) => (b.timestamp||0)-(a.timestamp||0)).filter(rec => {
         const passEmp = filterEmp ? rec.employeeId === filterEmp : true;
+        if (viewMode === 'calendar') {
+          return passEmp && rec.date && rec.date.startsWith(filterMonth);
+        }
         const passStart = filterDateStart ? rec.date >= filterDateStart : true;
         const passEnd = filterDateEnd ? rec.date <= filterDateEnd : true;
         return passEmp && passStart && passEnd;
       });
 
-    // Records that have late hours OR are leave type
     const issuesOnly = filtered.filter(rec => (rec.penaltyHours > 0) || rec.type === 'leave');
-
-    // Which rows to show in print
     const printRows = printMode === 'issues' ? issuesOnly : filtered;
 
     const triggerPrint = (mode) => {
       setPrintMode(mode);
       setShowPrintModal(false);
-      // Give React a tick to re-render with new printRows, then print
       setTimeout(() => {
         window.onafterprint = () => setPrintMode(null);
         window.print();
@@ -570,8 +768,8 @@ export default function App() {
       const rangeAdvancesList = advances.filter(ad => {
          if (ad.employeeId !== selectedEmp.id) return false;
          const adDate = ad.date || `${ad.month}-01`;
-         const passStart = filterDateStart ? adDate >= filterDateStart : true;
-         const passEnd = filterDateEnd ? adDate <= filterDateEnd : true;
+         const passStart = viewMode === 'calendar' ? adDate.startsWith(filterMonth) : (filterDateStart ? adDate >= filterDateStart : true);
+         const passEnd = viewMode === 'calendar' ? adDate.startsWith(filterMonth) : (filterDateEnd ? adDate <= filterDateEnd : true);
          return passStart && passEnd;
       });
 
@@ -633,25 +831,38 @@ export default function App() {
 
         <div className="card-header no-print">
           <h2 className="card-title"><FileText /> سجل الحضور الكامل</h2>
-          <button onClick={() => setShowPrintModal(true)} className="btn btn-outline" style={{display:'flex', alignItems:'center', gap:'0.5rem'}}><Printer size={18}/> طباعة</button>
+          <div style={{display:'flex', gap:'0.5rem'}}>
+            <div className="btn-group" style={{background:'var(--bg-color)', padding:'2px', borderRadius:'var(--radius-md)', display:'flex'}}>
+              <button className={`btn ${viewMode === 'table' ? 'btn-primary' : ''}`} style={{padding:'0.4rem 0.8rem', fontSize:'0.8rem'}} onClick={() => setViewMode('table')}>جدول</button>
+              <button className={`btn ${viewMode === 'calendar' ? 'btn-primary' : ''}`} style={{padding:'0.4rem 0.8rem', fontSize:'0.8rem'}} onClick={() => setViewMode('calendar')}>تقويم</button>
+            </div>
+            <button onClick={() => setShowPrintModal(true)} className="btn btn-outline" style={{display:'flex', alignItems:'center', gap:'0.5rem', padding:'0.4rem 0.8rem'}}><Printer size={16}/> طباعة</button>
+          </div>
         </div>
-        <div className="stats-grid no-print" style={{marginBottom: '1rem', backgroundColor: 'var(--bg-color)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)'}}>
+
+        <div className="stats-grid no-print" style={{marginBottom: '1.5rem', backgroundColor: 'var(--bg-color)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)'}}>
           <div className="form-group" style={{marginBottom: 0}}>
             <label>الموظف</label>
             <select value={filterEmp} onChange={e=>setFilterEmp(e.target.value)}>
-              <option value="">الكل</option>
+              <option value="">{viewMode==='calendar'?'-- اختر موظف --':'الكل'}</option>
               {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </div>
-          <div className="form-group" style={{marginBottom: 0}}><label>من تاريخ</label><input type="date" value={filterDateStart} onChange={e=>setFilterDateStart(e.target.value)} /></div>
-          <div className="form-group" style={{marginBottom: 0}}><label>إلى تاريخ</label><input type="date" value={filterDateEnd} onChange={e=>setFilterDateEnd(e.target.value)} /></div>
+          {viewMode === 'table' ? (
+            <>
+              <div className="form-group" style={{marginBottom: 0}}><label>من تاريخ</label><input type="date" value={filterDateStart} onChange={e=>setFilterDateStart(e.target.value)} /></div>
+              <div className="form-group" style={{marginBottom: 0}}><label>إلى تاريخ</label><input type="date" value={filterDateEnd} onChange={e=>setFilterDateEnd(e.target.value)} /></div>
+            </>
+          ) : (
+            <div className="form-group" style={{marginBottom: 0}}><label>الشهر</label><MonthPicker value={filterMonth} onChange={setFilterMonth} /></div>
+          )}
         </div>
         
         {summary && (
           <div className="print-summary" style={{marginBottom: '1.5rem', padding: '1.5rem', border: '2px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)'}}>
             <h3 style={{marginBottom: '1rem', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem'}}>
               تقرير الموظف: {summary.name} 
-              {filterDateStart && filterDateEnd ? ` (من ${filterDateStart} إلى ${filterDateEnd})` : ''}
+              {viewMode === 'calendar' ? ` (${filterMonth})` : (filterDateStart && filterDateEnd ? ` (من ${filterDateStart} إلى ${filterDateEnd})` : '')}
               {printMode === 'issues' && <span style={{marginRight:'0.75rem', fontSize:'0.85rem', color:'var(--danger)', fontWeight:'400'}}>(يعرض سجلات التأخير والإجازات فقط)</span>}
             </h3>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', fontWeight: 'bold'}}>
@@ -660,47 +871,54 @@ export default function App() {
                <div>ساعات التأخير (للفترة):<br/><span style={{color: 'var(--danger)', fontSize:'1.2rem'}}>{summary.rangePenaltyHours} ساعة (~ {summary.rangeConsumedLeaves} يوم إجازة)</span></div>
                <div>السلف (للفترة):<br/><span style={{color: 'var(--warning)', fontSize:'1.2rem'}}>{summary.totalRangeAdvances.toLocaleString()} ل.س</span></div>
                <div>رصيد الإجازات المتبقي (الكلي):<br/><span style={{color: summary.remainingLeaves < 3 ? 'var(--danger)' : 'var(--primary)', fontSize:'1.2rem'}}>{summary.remainingLeaves} يوم</span></div>
-               <div style={{borderRight: '4px solid var(--primary)', paddingRight: '0.5rem', color: 'var(--primary)'}}>
-                 صافي الراتب المستحق:<br/>
-                 <span style={{fontSize:'1.5rem', color: 'var(--primary)'}}>{summary.netSalary.toLocaleString()} ل.س</span>
-               </div>
+               <div style={{borderRight: '4px solid var(--primary)', paddingRight: '0.5rem', color: 'var(--primary)'}}>صافي الراتب المستحق:<br/><span style={{fontSize:'1.5rem', color: 'var(--primary)'}}>{summary.netSalary.toLocaleString()} ل.س</span></div>
             </div>
           </div>
         )}
 
-        <div className="table-container">
-          <table>
-            <thead><tr><th>الموظف</th><th>التاريخ</th><th>النوع</th><th>الحضور</th><th>الانصراف</th><th>إضافي</th><th>تأخير</th><th className="no-print">إجراءات</th></tr></thead>
-            <tbody>
-              {printRows.map(rec => {
-                const emp = employees.find(e => e.id === rec.employeeId);
-                const isEditing = editId === rec.id;
-                return (
-                  <tr key={rec.id} style={{background: rec.type === 'leave' ? 'rgba(245,158,11,0.07)' : rec.penaltyHours > 0 ? 'rgba(239,68,68,0.05)' : ''}}>
-                    <td style={{fontWeight:'700'}}>{emp?.name || 'محذوف'}</td><td>{rec.date}</td><td>{rec.type==='leave'?'إجازة':rec.type==='excel'?'إكسل':'يدوي'}</td>
-                    {isEditing ? (
-                      <>
-                        <td><input type="time" value={editData.checkIn} onChange={e=>setEditData({...editData,checkIn:e.target.value})} style={{padding:'0.2rem',width:'auto'}} /></td>
-                        <td><input type="time" value={editData.checkOut} onChange={e=>setEditData({...editData,checkOut:e.target.value})} style={{padding:'0.2rem',width:'auto'}} /></td>
-                        <td><input type="number" step="0.5" value={editData.extraHours} onChange={e=>setEditData({...editData,extraHours:e.target.value})} style={{padding:'0.2rem',width:'60px'}} /></td>
-                        <td>سيتم الحساب</td>
-                      </>
-                    ) : (
-                      <>
-                        <td>{rec.checkIn || (rec.type==='leave'?'-':'غير مسجل')}</td><td>{rec.checkOut || (rec.type==='leave'?'-':'غير مسجل')}</td><td>{rec.extraHours||0}</td><td style={{color: rec.penaltyHours > 0 ? 'var(--danger)' : 'inherit', fontWeight: rec.penaltyHours > 0 ? '700' : '400'}}>{rec.penaltyHours} ساعة</td>
-                      </>
-                    )}
-                    <td className="no-print">
-                      {rec.type !== 'leave' && <button onClick={()=>handleEdit(rec)} className={`btn ${isEditing?'btn-success':'btn-secondary'}`} style={{padding:'0.3rem 0.6rem',marginLeft:'0.5rem',background:isEditing?'var(--success)':''}}>{isEditing?'حفظ':'تعديل'}</button>}
-                      <button onClick={()=>handleDelete(rec.id)} className="btn btn-danger" style={{padding:'0.3rem 0.6rem'}}><Trash2 size={16} /></button>
-                    </td>
-                  </tr>
-                )
-              })}
-              {printRows.length === 0 && <tr><td colSpan="8" style={{textAlign:'center'}}>لا يوجد سجلات</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        {viewMode === 'table' ? (
+          <div className="table-container">
+            <table>
+              <thead><tr><th>الموظف</th><th>التاريخ</th><th>النوع</th><th>الحضور</th><th>الانصراف</th><th>إضافي</th><th>تأخير</th><th className="no-print">إجراءات</th></tr></thead>
+              <tbody>
+                {filtered.map(rec => {
+                  const emp = employees.find(e => e.id === rec.employeeId);
+                  const isEditing = editId === rec.id;
+                  return (
+                    <tr key={rec.id} style={{background: rec.type === 'leave' ? 'rgba(245,158,11,0.07)' : rec.penaltyHours > 0 ? 'rgba(239,68,68,0.05)' : ''}}>
+                      <td style={{fontWeight:'700'}}>{emp?.name || 'محذوف'}</td><td>{rec.date}</td><td>{rec.type==='leave'?'إجازة':rec.type==='excel'?'إكسل':'يدوي'}</td>
+                      {isEditing ? (
+                        <>
+                          <td><input type="time" value={editData.checkIn} onChange={e=>setEditData({...editData,checkIn:e.target.value})} style={{padding:'0.2rem',width:'auto'}} /></td>
+                          <td><input type="time" value={editData.checkOut} onChange={e=>setEditData({...editData,checkOut:e.target.value})} style={{padding:'0.2rem',width:'auto'}} /></td>
+                          <td><input type="number" step="0.5" value={editData.extraHours} onChange={e=>setEditData({...editData,extraHours:e.target.value})} style={{padding:'0.2rem',width:'60px'}} /></td>
+                          <td>سيتم الحساب</td>
+                        </>
+                      ) : (
+                        <>
+                          <td>{rec.checkIn || (rec.type==='leave'?'-':'غير مسجل')}</td><td>{rec.checkOut || (rec.type==='leave'?'-':'غير مسجل')}</td><td>{rec.extraHours||0}</td><td style={{color: rec.penaltyHours > 0 ? 'var(--danger)' : 'inherit', fontWeight: rec.penaltyHours > 0 ? '700' : '400'}}>{rec.penaltyHours} ساعة</td>
+                        </>
+                      )}
+                      <td className="no-print">
+                        {rec.type !== 'leave' && <button onClick={()=>handleEdit(rec)} className={`btn ${isEditing?'btn-success':'btn-secondary'}`} style={{padding:'0.3rem 0.6rem',marginLeft:'0.5rem',background:isEditing?'var(--success)':''}}>{isEditing?'حفظ':'تعديل'}</button>}
+                        <button onClick={()=>handleDelete(rec.id)} className="btn btn-danger" style={{padding:'0.3rem 0.6rem'}}><Trash2 size={16} /></button>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {filtered.length === 0 && <tr><td colSpan="8" style={{textAlign:'center'}}>لا يوجد سجلات</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <AttendanceCalendar 
+            employeeId={filterEmp} 
+            month={filterMonth} 
+            attendanceRecords={attendance} 
+            employees={employees} 
+            settings={settings}
+          />
+        )}
       </div>
     );
   };
