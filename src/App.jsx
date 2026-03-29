@@ -404,7 +404,12 @@ export default function App() {
     };
 
     const handleEdit = (emp) => {
-      setEditId(emp.id); setName(emp.name); setSalary(emp.salary); setLeaves(emp.totalLeaves); setWorkDays(emp.workDays || [0, 1, 2, 3, 4]);
+      setEditId(emp.id); 
+      setName(emp.name); 
+      setSalary(emp.salary); 
+      setLeaves(emp.totalLeaves); 
+      setWorkDays(emp.workDays || [0, 1, 2, 3, 4]);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleDelete = async (id) => {
@@ -460,7 +465,7 @@ export default function App() {
                 </div>
                 <div style={{display:'flex', gap:'0.5rem', flexWrap:'wrap'}}>
                   <span className={`badge ${empStats && empStats.remainingLeaves < 3 ? 'badge-danger' : 'badge-success'}`} style={{fontSize:'0.85rem', padding:'0.4rem 0.8rem'}}>إجازات متبقية: {empStats?.remainingLeaves ?? '...'} يوم</span>
-                  <button onClick={() => handleEdit(emp)} className="btn btn-secondary" style={{padding:'0.4rem 0.8rem'}}><Edit size={14}/> تعديل</button>
+                  <button type="button" onClick={() => handleEdit(emp)} className="btn btn-secondary" style={{padding:'0.4rem 0.8rem'}}><Edit size={14}/> تعديل</button>
                   <button onClick={() => handleDelete(emp.id)} className="btn btn-danger" style={{padding:'0.4rem 0.8rem'}}><Trash2 size={14}/> حذف</button>
                   <button onClick={() => { setProfileEmpId(profileEmpId === emp.id ? null : emp.id); setActiveTab('records'); }} className="btn btn-outline" style={{padding:'0.4rem 0.8rem'}}><FileText size={14}/> سجل الحضور</button>
                 </div>
@@ -791,18 +796,18 @@ export default function App() {
     }
 
     return (
-      <div className="animate-fade-in card print-card">
-
-        {/* PRINT OPTIONS MODAL */}
+      <>
+        {/* PRINT OPTIONS MODAL - Moved outside card to ensure fixed positioning relative to viewport */}
         {showPrintModal && (
           <div className="modal-overlay" onClick={() => setShowPrintModal(false)}>
             <div className="modal-box" onClick={e => e.stopPropagation()}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem'}}>
                 <h3 style={{margin:0, color:'var(--text-primary)'}}><Printer size={18} style={{verticalAlign:'middle', marginLeft:'6px'}}/> خيارات الطباعة</h3>
-                <button onClick={() => setShowPrintModal(false)} className="btn btn-secondary" style={{padding:'0.3rem 0.6rem'}}><X size={16}/></button>
+                <button type="button" onClick={() => setShowPrintModal(false)} className="btn btn-secondary" style={{padding:'0.3rem 0.6rem'}}><X size={16}/></button>
               </div>
               <div style={{display:'flex', flexDirection:'column', gap:'0.75rem'}}>
                 <button
+                  type="button"
                   className="btn btn-primary"
                   style={{padding:'0.85rem 1.5rem', fontSize:'1rem', display:'flex', alignItems:'center', gap:'0.75rem', justifyContent:'flex-start'}}
                   onClick={() => triggerPrint('detailed')}
@@ -814,6 +819,7 @@ export default function App() {
                   </div>
                 </button>
                 <button
+                  type="button"
                   className="btn btn-outline"
                   style={{padding:'0.85rem 1.5rem', fontSize:'1rem', display:'flex', alignItems:'center', gap:'0.75rem', justifyContent:'flex-start', borderColor:'var(--danger)', color:'var(--danger)'}}
                   onClick={() => triggerPrint('issues')}
@@ -828,6 +834,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+        <div className="animate-fade-in card print-card">
 
         <div className="card-header no-print">
           <h2 className="card-title"><FileText /> سجل الحضور الكامل</h2>
@@ -881,7 +889,7 @@ export default function App() {
             <table>
               <thead><tr><th>الموظف</th><th>التاريخ</th><th>النوع</th><th>الحضور</th><th>الانصراف</th><th>إضافي</th><th>تأخير</th><th className="no-print">إجراءات</th></tr></thead>
               <tbody>
-                {filtered.map(rec => {
+                {printRows.map(rec => {
                   const emp = employees.find(e => e.id === rec.employeeId);
                   const isEditing = editId === rec.id;
                   return (
@@ -906,7 +914,7 @@ export default function App() {
                     </tr>
                   )
                 })}
-                {filtered.length === 0 && <tr><td colSpan="8" style={{textAlign:'center'}}>لا يوجد سجلات</td></tr>}
+                {printRows.length === 0 && <tr><td colSpan="8" style={{textAlign:'center'}}>لا يوجد سجلات</td></tr>}
               </tbody>
             </table>
           </div>
@@ -920,6 +928,7 @@ export default function App() {
           />
         )}
       </div>
+      </>
     );
   };
 
