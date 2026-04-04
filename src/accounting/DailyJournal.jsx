@@ -155,7 +155,7 @@ export default function DailyJournal({ showToast }) {
               <k.icon size={15}/> {k.label}
             </div>
             <div style={{ fontWeight:'800', fontSize:'1.3rem', color: k.color, marginTop:'0.2rem' }}>
-              {k.val.toLocaleString()}
+              {k.val.toLocaleString('en-US')}
             </div>
           </div>
         ))}
@@ -371,13 +371,13 @@ export default function DailyJournal({ showToast }) {
                   <td>{categories.find(c => c.id === tx.category_id)?.name_ar || '-'}</td>
                   <td>{counterparties.find(cp => cp.id === tx.counterparty_id)?.name_ar || '-'}</td>
                   <td style={{ color:'var(--success)', fontWeight: tx.direction === 'وارد' ? '700' : '400' }}>
-                    {tx.direction === 'وارد' ? tx.amount.toLocaleString() : ''}
+                    {tx.direction === 'وارد' ? tx.amount.toLocaleString('en-US') : ''}
                   </td>
                   <td style={{ color:'var(--danger)', fontWeight: tx.direction === 'صادر' ? '700' : '400' }}>
-                    {tx.direction === 'صادر' ? tx.amount.toLocaleString() : ''}
+                    {tx.direction === 'صادر' ? tx.amount.toLocaleString('en-US') : ''}
                   </td>
                   <td style={{ fontWeight:'800', color: tx.running_balance >= 0 ? 'var(--primary)' : 'var(--danger)', background:'rgba(59,130,246,0.05)' }}>
-                    {tx.running_balance?.toLocaleString()}
+                    {tx.running_balance?.toLocaleString('en-US')}
                   </td>
                   <td style={{ fontSize:'0.8rem', color:'var(--text-secondary)' }}>{tx.reference_no || '-'}</td>
                   {visibleCustomFields.map(cf => (
@@ -398,9 +398,9 @@ export default function DailyJournal({ showToast }) {
         {displayRows.length > 0 && (
           <div style={{ padding:'0.75rem 1rem', borderTop:'1px solid var(--border)', display:'flex', gap:'2rem', fontSize:'0.9rem', color:'var(--text-secondary)' }}>
             <span>{displayRows.length} قيد</span>
-            <span style={{ color:'var(--success)' }}>وارد: {summary.totalIn.toLocaleString()}</span>
-            <span style={{ color:'var(--danger)' }}>صادر: {summary.totalOut.toLocaleString()}</span>
-            <span style={{ fontWeight:'700', color: summary.net >= 0 ? 'var(--primary)' : 'var(--danger)' }}>الصافي: {summary.net.toLocaleString()}</span>
+            <span style={{ color:'var(--success)' }}>وارد: {summary.totalIn.toLocaleString('en-US')}</span>
+            <span style={{ color:'var(--danger)' }}>صادر: {summary.totalOut.toLocaleString('en-US')}</span>
+            <span style={{ fontWeight:'700', color: summary.net >= 0 ? 'var(--primary)' : 'var(--danger)' }}>الصافي: {summary.net.toLocaleString('en-US')}</span>
           </div>
         )}
       </div>

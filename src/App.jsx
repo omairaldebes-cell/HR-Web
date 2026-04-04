@@ -307,9 +307,9 @@ export default function App() {
 
       {/* KPI Cards */}
       <div className="stats-grid" style={{marginBottom:'1.5rem'}}>
-        <div className="stat-card"><div className="stat-label">إجمالي كتلة الرواتب</div><div className="stat-value" style={{fontSize:'1.4rem'}}>{totalPayroll.toLocaleString()}</div><div className="stat-label">ل.س</div></div>
-        <div className="stat-card"><div className="stat-label">إجمالي العمل الإضافي</div><div className="stat-value" style={{fontSize:'1.4rem',color:'var(--success)'}}>{totalOT.toLocaleString()}</div><div className="stat-label">ل.س</div></div>
-        <div className="stat-card"><div className="stat-label">إجمالي السلف</div><div className="stat-value" style={{fontSize:'1.4rem',color:'var(--warning)'}}>{totalAdvances.toLocaleString()}</div><div className="stat-label">ل.س</div></div>
+        <div className="stat-card"><div className="stat-label">إجمالي كتلة الرواتب</div><div className="stat-value" style={{fontSize:'1.4rem'}}>{totalPayroll.toLocaleString('en-US')}</div><div className="stat-label">ل.س</div></div>
+        <div className="stat-card"><div className="stat-label">إجمالي العمل الإضافي</div><div className="stat-value" style={{fontSize:'1.4rem',color:'var(--success)'}}>{totalOT.toLocaleString('en-US')}</div><div className="stat-label">ل.س</div></div>
+        <div className="stat-card"><div className="stat-label">إجمالي السلف</div><div className="stat-value" style={{fontSize:'1.4rem',color:'var(--warning)'}}>{totalAdvances.toLocaleString('en-US')}</div><div className="stat-label">ل.س</div></div>
         <div className="stat-card"><div className="stat-label">ساعات تأخير إجمالية</div><div className="stat-value" style={{fontSize:'1.4rem',color:'var(--danger)'}}>{totalPenaltyHours}</div><div className="stat-label">ساعة</div></div>
       </div>
 
@@ -355,9 +355,9 @@ export default function App() {
                     </td>
                     <td style={{color: s.monthPenaltyHours > 0 ? 'var(--danger)' : 'inherit'}}>{s.monthPenaltyHours} ساعة</td>
                     <td>{s.monthExtraHours} ساعة</td>
-                    <td>{s.otValue.toLocaleString()} ل.س</td>
-                    <td style={{color: s.totalAdvances > 0 ? 'var(--warning)' : 'inherit'}}>{s.totalAdvances.toLocaleString()} ل.س</td>
-                    <td style={{fontWeight: '800', color: 'var(--primary)'}}>{s.netSalary.toLocaleString()} ل.س</td>
+                    <td>{s.otValue.toLocaleString('en-US')} ل.س</td>
+                    <td style={{color: s.totalAdvances > 0 ? 'var(--warning)' : 'inherit'}}>{s.totalAdvances.toLocaleString('en-US')} ل.س</td>
+                    <td style={{fontWeight: '800', color: 'var(--primary)'}}>{s.netSalary.toLocaleString('en-US')} ل.س</td>
                     <td>
                       <button className="btn btn-secondary" style={{padding:'0.3rem 0.7rem'}} onClick={() => { setProfileEmpId(s.id); setActiveTab('employees'); }}>
                         <Users size={14}/>
@@ -484,7 +484,7 @@ export default function App() {
                   </div>
                   <div>
                     <div style={{fontWeight:'800', fontSize:'1.1rem'}}>{emp.name}</div>
-                    <div style={{color:'var(--text-secondary)', fontSize:'0.85rem'}}>راتب: {parseFloat(emp.salary).toLocaleString()} ل.س &nbsp;|  سجلات: {empAttendance} &nbsp;|  سلف: {empAdvances.toLocaleString()} ل.س</div>
+                    <div style={{color:'var(--text-secondary)', fontSize:'0.85rem'}}>راتب: {parseFloat(emp.salary).toLocaleString('en-US')} ل.س &nbsp;|  سجلات: {empAttendance} &nbsp;|  سلف: {empAdvances.toLocaleString('en-US')} ل.س</div>
                   </div>
                 </div>
                 <div style={{display:'flex', gap:'0.5rem', flexWrap:'wrap'}}>
@@ -629,7 +629,7 @@ export default function App() {
                     }}>
                       <td><input type="checkbox" checked={selectedEmps.includes(emp.id)} readOnly onClick={e => e.stopPropagation()} /></td>
                       <td style={{fontWeight:'700'}}>{emp.name}</td>
-                      <td>{parseFloat(emp.salary).toLocaleString()} ل.س</td>
+                      <td>{parseFloat(emp.salary).toLocaleString('en-US')} ل.س</td>
                     </tr>
                   ))}
                 </tbody>
@@ -898,8 +898,8 @@ export default function App() {
               {printMode === 'issues' && <span style={{marginRight:'0.75rem', fontSize:'0.85rem', color:'var(--danger)', fontWeight:'400'}}>(يعرض سجلات التأخير والإجازات فقط)</span>}
             </h3>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', fontWeight: 'bold'}}>
-               <div>الراتب الأساسي:<br/><span style={{color: 'var(--text-secondary)', fontSize:'1.2rem'}}>{summary.baseSalary.toLocaleString()} ل.س</span></div>
-               <div>ساعات العمل الإضافي:<br/><span style={{color: 'var(--success)', fontSize:'1.2rem'}}>{summary.rangeExtraHours} ساعة ({summary.rangeOtValue.toLocaleString()} ل.س)</span></div>
+               <div>الراتب الأساسي:<br/><span style={{color: 'var(--text-secondary)', fontSize:'1.2rem'}}>{summary.baseSalary.toLocaleString('en-US')} ل.س</span></div>
+               <div>ساعات العمل الإضافي:<br/><span style={{color: 'var(--success)', fontSize:'1.2rem'}}>{summary.rangeExtraHours} ساعة ({summary.rangeOtValue.toLocaleString('en-US')} ل.س)</span></div>
                <div>ساعات التأخير (للفترة):<br/><span style={{color: 'var(--danger)', fontSize:'1.2rem'}}>{summary.rangePenaltyHours} ساعة (~ {summary.rangeConsumedLeaves} يوم إجازة)</span></div>
                <div>السلف (للفترة):<br/><span style={{color: 'var(--warning)', fontSize:'1.2rem'}}>{summary.totalRangeAdvances.toLocaleString()} ل.س</span></div>
                <div>رصيد الإجازات المتبقي (الكلي):<br/><span style={{color: summary.remainingLeaves < 3 ? 'var(--danger)' : 'var(--primary)', fontSize:'1.2rem'}}>{summary.remainingLeaves} يوم</span></div>
@@ -1014,7 +1014,7 @@ export default function App() {
               <thead><tr><th>الموظف</th><th>تاريخ الطلب</th><th>لشهر</th><th>المبلغ</th><th>حذف</th></tr></thead>
               <tbody>
                 {advances.slice().sort((a,b)=>(b.timestamp||0)-(a.timestamp||0)).map(adv => (
-                  <tr key={adv.id}><td>{employees.find(e=>e.id===adv.employeeId)?.name}</td><td>{adv.date || '-'}</td><td>{adv.month}</td><td>{adv.amount.toLocaleString()}</td><td><button onClick={()=>handleDelete(adv.id)} className="btn btn-danger" style={{padding:'0.3rem'}}><Trash2 size={16}/></button></td></tr>
+                  <tr key={adv.id}><td>{employees.find(e=>e.id===adv.employeeId)?.name}</td><td>{adv.date || '-'}</td><td>{adv.month}</td><td>{adv.amount.toLocaleString('en-US')}</td><td><button onClick={()=>handleDelete(adv.id)} className="btn btn-danger" style={{padding:'0.3rem'}}><Trash2 size={16}/></button></td></tr>
                 ))}
               </tbody>
             </table>

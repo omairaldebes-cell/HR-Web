@@ -83,26 +83,26 @@ export default function AccountingDashboard({ setActiveTab }) {
         <div className="stat-card">
           <div className="stat-label">رصيد الصندوق الرئيسي</div>
           <div className="stat-value" style={{ color: mainBalance >= 0 ? 'var(--primary)' : 'var(--danger)', fontSize:'1.6rem' }}>
-            {mainBalance.toLocaleString()}
+            {mainBalance.toLocaleString('en-US')}
           </div>
           <div className="stat-label">{company?.currency || 'ل.س'}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">وارد اليوم</div>
-          <div className="stat-value" style={{ color:'var(--success)', fontSize:'1.6rem' }}>{todayIn.toLocaleString()}</div>
+          <div className="stat-value" style={{ color:'var(--success)', fontSize:'1.6rem' }}>{todayIn.toLocaleString('en-US')}</div>
           <div className="stat-label">{company?.currency || 'ل.س'}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">صادر اليوم</div>
-          <div className="stat-value" style={{ color:'var(--danger)', fontSize:'1.6rem' }}>{todayOut.toLocaleString()}</div>
+          <div className="stat-value" style={{ color:'var(--danger)', fontSize:'1.6rem' }}>{todayOut.toLocaleString('en-US')}</div>
           <div className="stat-label">{company?.currency || 'ل.س'}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">صافي الشهر الحالي</div>
           <div className="stat-value" style={{ color: monthNet >= 0 ? 'var(--success)' : 'var(--danger)', fontSize:'1.6rem' }}>
-            {monthNet.toLocaleString()}
+            {monthNet.toLocaleString('en-US')}
           </div>
-          <div className="stat-label">وارد: {monthIn.toLocaleString()} | صادر: {monthOut.toLocaleString()}</div>
+          <div className="stat-label">وارد: {monthIn.toLocaleString('en-US')} | صادر: {monthOut.toLocaleString('en-US')}</div>
         </div>
       </div>
 
@@ -134,7 +134,7 @@ export default function AccountingDashboard({ setActiveTab }) {
               <div key={acc.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.4rem 0', borderBottom:'1px solid var(--border)' }}>
                 <span style={{ fontSize:'0.9rem' }}>{acc.name_ar}</span>
                 <span style={{ fontWeight:'700', color: acc.balance >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  {acc.balance.toLocaleString()} {company?.currency || 'ل.س'}
+                  {acc.balance.toLocaleString('en-US')} {company?.currency || 'ل.س'}
                 </span>
               </div>
             ))}
@@ -174,7 +174,7 @@ export default function AccountingDashboard({ setActiveTab }) {
                   <td>{accounts.find(a => a.id === tx.main_account_id)?.name_ar || '-'}</td>
                   <td><span className={`badge ${tx.direction === 'وارد' ? 'badge-success' : 'badge-danger'}`}>{tx.direction}</span></td>
                   <td style={{ fontWeight:'700', color: tx.direction === 'وارد' ? 'var(--success)' : 'var(--danger)' }}>
-                    {(tx.amount || 0).toLocaleString()}
+                    {(tx.amount || 0).toLocaleString('en-US')}
                   </td>
                   <td><span className="badge">{tx.status}</span></td>
                 </tr>
