@@ -84,7 +84,7 @@ export function AccountsView({ showToast }) {
           <div className="stats-grid" style={{ marginBottom:'1rem' }}>
             <div className="stat-card">
               <div className="stat-label">الرصيد الحالي</div>
-              <div className="stat-value" style={{ color:'var(--primary)', fontSize:'1.4rem' }}>{getAccountBalance(viewedAccount.id).toLocaleString()}</div>
+              <div className="stat-value" style={{ color:'var(--primary)', fontSize:'1.4rem' }}>{getAccountBalance(viewedAccount.id).toLocaleString('en-US')}</div>
             </div>
             <div className="stat-card">
               <div className="stat-label">عدد الحركات</div>
@@ -101,8 +101,8 @@ export function AccountsView({ showToast }) {
                   <tr key={tx.id}>
                     <td>{tx.transaction_date}</td>
                     <td>{tx.description}</td>
-                    <td style={{ color:'var(--success)', fontWeight: tx.direction === 'وارد' ? '700':'400' }}>{tx.direction === 'وارد' ? tx.amount.toLocaleString() : ''}</td>
-                    <td style={{ color:'var(--danger)', fontWeight: tx.direction === 'صادر' ? '700':'400' }}>{tx.direction === 'صادر' ? tx.amount.toLocaleString() : ''}</td>
+                    <td style={{ color:'var(--success)', fontWeight: tx.direction === 'وارد' ? '700':'400' }}>{tx.direction === 'وارد' ? tx.amount.toLocaleString('en-US') : ''}</td>
+                    <td style={{ color:'var(--danger)', fontWeight: tx.direction === 'صادر' ? '700':'400' }}>{tx.direction === 'صادر' ? tx.amount.toLocaleString('en-US') : ''}</td>
                   </tr>
                 ))}
               </tbody>
@@ -131,7 +131,7 @@ export function AccountsView({ showToast }) {
                 )}
               </div>
               <div style={{ marginTop:'1rem', padding:'0.5rem', background:'var(--bg-color)', borderRadius:'var(--radius-sm)', textAlign:'center' }}>
-                <div style={{ fontSize:'1.4rem', fontWeight:'800', color: balance >= 0 ? 'var(--success)' : 'var(--danger)' }}>{balance.toLocaleString()}</div>
+                <div style={{ fontSize:'1.4rem', fontWeight:'800', color: balance >= 0 ? 'var(--success)' : 'var(--danger)' }}>{balance.toLocaleString('en-US')}</div>
                 <div style={{ fontSize:'0.8rem', color:'var(--text-secondary)' }}>الرصيد الحالي</div>
               </div>
               {acc.is_main && <div style={{ marginTop:'0.5rem' }}><span className="badge badge-success">رئيسي</span></div>}

@@ -88,11 +88,11 @@ export function MonthlyReport() {
                   <td style={{ fontWeight:'700' }}>{row.month}</td>
                   {topIncomeCategories.map(id => {
                     const catName = categories.find(c=>c.id===id)?.name_ar || id;
-                    return <td key={id} style={{ fontSize:'0.85rem' }}>{row[catName] > 0 ? row[catName].toLocaleString() : '-'}</td>;
+                    return <td key={id} style={{ fontSize:'0.85rem' }}>{row[catName] > 0 ? row[catName].toLocaleString('en-US') : '-'}</td>;
                   })}
-                  <td style={{ color:'var(--success)', fontWeight:'700' }}>{row['إجمالي وارد'].toLocaleString()}</td>
-                  <td style={{ color:'var(--danger)', fontWeight:'700' }}>{row['إجمالي صادر'].toLocaleString()}</td>
-                  <td style={{ color: row['صافي']>=0?'var(--primary)':'var(--danger)', fontWeight:'800' }}>{row['صافي'].toLocaleString()}</td>
+                  <td style={{ color:'var(--success)', fontWeight:'700' }}>{row['إجمالي وارد'].toLocaleString('en-US')}</td>
+                  <td style={{ color:'var(--danger)', fontWeight:'700' }}>{row['إجمالي صادر'].toLocaleString('en-US')}</td>
+                  <td style={{ color: row['صافي']>=0?'var(--primary)':'var(--danger)', fontWeight:'800' }}>{row['صافي'].toLocaleString('en-US')}</td>
                 </tr>
               ))}
             </tbody>
@@ -140,7 +140,7 @@ export function AuditLog() {
               ) : logs.map((log, i) => (
                 <tr key={i}>
                   <td style={{ fontSize:'0.8rem', color:'var(--text-secondary)' }}>
-                    {new Date(log.timestamp).toLocaleString('ar-SA')}
+                    {new Date(log.timestamp).toLocaleString('en-US')}
                   </td>
                   <td>
                     <span className={`badge ${log.action === 'create' ? 'badge-success' : log.action === 'delete' ? 'badge-danger' : ''}`}>
