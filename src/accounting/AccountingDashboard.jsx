@@ -1,0 +1,188 @@
+import { useMemo, useState } from 'react';
+import { useAccounting } from './context/AccountingContext';
+import {
+  LayoutDashboard, TrendingUp, TrendingDown, Wallet, ArrowUpCircle,
+  ArrowDownCircle, ArrowLeftRight, PlusCircle, Users, BookOpen, ChevronRight
+} from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+
+export default function AccountingDashboard({ setActiveTab }) {
+  const { transactions, accounts, getAccountBalance, getMonthSummary, company } = useAccounting();
+
+  const today = new Date().toISOString().split('T')[0];
+  const currentMonth = today.slice(0, 7);
+
+  const todayTxs = transactions.filter(tx => tx.transaction_date === today && tx.status === 'مرحّل');
+  const todayIn  = todayTxs.filter(t => t.direction === 'وارد').reduce((s, t) => s + (t.amount || 0), 0);
+  const todayOut = todayTxs.filter(t => t.direction === 'صادر').reduce((s, t) => s + (t.amount || 0), 0);
+
+  const { totalIn: monthIn, totalOut: monthOut, net: monthNet } = getMonthSummary(currentMonth);
+
+  const mainAccount = accounts.find(a => a.is_main);
+  const mainBalance = mainAccount ? getAccountBalance(mainAccount.id) : 0;
+
+  // Chart: last 7 days in vs out
+  const last7 = useMemo(() => {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = d.toISOString().split('T')[0];
+      const dayLabel = `${d.getDate()}/${d.getMonth()+1}`;
+      const dayTxs = transactions.filter(t => t.transaction_date === dStr && t.status === 'مرحّل');
+      days.push({
+        name: dayLabel,
+        وارد: dayTxs.filter(t => t.direction === 'وارد').reduce((s,t) => s+(t.amount||0), 0),
+        صادر: dayTxs.filter(t => t.direction === 'صادر').reduce((s,t) => s+(t.amount||0), 0),
+      });
+    }
+    return days;
+  }, [transactions]);
+
+  // Top accounts by balance
+  const topAccounts = accounts.slice(0, 6).map(a => ({
+    ...a, balance: getAccountBalance(a.id)
+  }));
+
+  // Recent transactions
+  const recentTxs = transactions
+    .slice().sort((a,b) => (b.created_at||0) - (a.created_at||0))
+    .slice(0, 8);
+
+  return (
+    <div className="animate-fade-in" style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
+      {/* Header */}
+      <div className="card-header no-print" style={{ padding:'0 0 0.5rem' }}>
+        <h2 className="card-title"><LayoutDashboard /> {company?.name_ar || 'دفتر اليومية الذكي'}</h2>
+        <span style={{ color:'var(--text-secondary)', fontSize:'0.85rem' }}>{today}</span>
+      </div>
+
+      {/* Quick Action Buttons */}
+      <div style={{ display:'flex', gap:'0.75rem', flexWrap:'wrap' }}>
+        {[
+          { label:'إضافة وارد', icon: ArrowUpCircle, tab:'acc_daily', color:'var(--success)', dir:'وارد' },
+          { label:'إضافة صادر', icon: ArrowDownCircle, tab:'acc_daily', color:'var(--danger)', dir:'صادر' },
+          { label:'تحويل بين الحسابات', icon: ArrowLeftRight, tab:'acc_daily', color:'var(--primary)' },
+          { label:'حساب جديد', icon: PlusCircle, tab:'acc_accounts', color:'var(--warning)' },
+          { label:'فئة جديدة', icon: BookOpen, tab:'acc_categories', color:'var(--primary)' },
+        ].map(btn => (
+          <button
+            key={btn.label}
+            className="btn btn-outline"
+            onClick={() => setActiveTab(btn.tab)}
+            style={{ display:'flex', alignItems:'center', gap:'0.4rem', borderColor: btn.color, color: btn.color, fontWeight:'600' }}
+          >
+            <btn.icon size={16} />
+            {btn.label}
+          </button>
+        ))}
+      </div>
+
+      {/* KPI Cards */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-label">رصيد الصندوق الرئيسي</div>
+          <div className="stat-value" style={{ color: mainBalance >= 0 ? 'var(--primary)' : 'var(--danger)', fontSize:'1.6rem' }}>
+            {mainBalance.toLocaleString()}
+          </div>
+          <div className="stat-label">{company?.currency || 'ل.س'}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">وارد اليوم</div>
+          <div className="stat-value" style={{ color:'var(--success)', fontSize:'1.6rem' }}>{todayIn.toLocaleString()}</div>
+          <div className="stat-label">{company?.currency || 'ل.س'}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">صادر اليوم</div>
+          <div className="stat-value" style={{ color:'var(--danger)', fontSize:'1.6rem' }}>{todayOut.toLocaleString()}</div>
+          <div className="stat-label">{company?.currency || 'ل.س'}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">صافي الشهر الحالي</div>
+          <div className="stat-value" style={{ color: monthNet >= 0 ? 'var(--success)' : 'var(--danger)', fontSize:'1.6rem' }}>
+            {monthNet.toLocaleString()}
+          </div>
+          <div className="stat-label">وارد: {monthIn.toLocaleString()} | صادر: {monthOut.toLocaleString()}</div>
+        </div>
+      </div>
+
+      {/* Chart + Accounts */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem' }}>
+        <div className="card">
+          <h3 className="card-title" style={{ marginBottom:'1rem', fontSize:'1rem' }}>
+            <TrendingUp size={16}/> الحركة اليومية (آخر 7 أيام)
+          </h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={last7} margin={{ top:5, right:10, left:0, bottom:5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="name" tick={{ fill:'var(--text-secondary)', fontSize:12 }} />
+              <YAxis tick={{ fill:'var(--text-secondary)', fontSize:11 }} />
+              <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)' }} />
+              <Legend />
+              <Bar dataKey="وارد" fill="#10b981" radius={[4,4,0,0]} />
+              <Bar dataKey="صادر" fill="#ef4444" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="card">
+          <h3 className="card-title" style={{ marginBottom:'1rem', fontSize:'1rem' }}>
+            <Wallet size={16}/> أرصدة الحسابات
+          </h3>
+          <div style={{ display:'flex', flexDirection:'column', gap:'0.6rem' }}>
+            {topAccounts.map(acc => (
+              <div key={acc.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'0.4rem 0', borderBottom:'1px solid var(--border)' }}>
+                <span style={{ fontSize:'0.9rem' }}>{acc.name_ar}</span>
+                <span style={{ fontWeight:'700', color: acc.balance >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  {acc.balance.toLocaleString()} {company?.currency || 'ل.س'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Transactions */}
+      <div className="card">
+        <div className="card-header" style={{ marginBottom:'1rem' }}>
+          <h3 className="card-title" style={{ fontSize:'1rem' }}><BookOpen size={16}/> آخر القيود</h3>
+          <button className="btn btn-outline" style={{ fontSize:'0.85rem', padding:'0.3rem 0.8rem' }} onClick={() => setActiveTab('acc_daily')}>
+            عرض الكل <ChevronRight size={14}/>
+          </button>
+        </div>
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>رقم القيد</th>
+                <th>البيان</th>
+                <th>الحساب</th>
+                <th>النوع</th>
+                <th>المبلغ</th>
+                <th>الحالة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentTxs.length === 0 ? (
+                <tr><td colSpan={7} style={{ textAlign:'center', color:'var(--text-secondary)', padding:'2rem' }}>لا توجد قيود بعد</td></tr>
+              ) : recentTxs.map(tx => (
+                <tr key={tx.id}>
+                  <td>{tx.transaction_date}</td>
+                  <td style={{ fontSize:'0.8rem', color:'var(--text-secondary)' }}>{tx.transaction_no}</td>
+                  <td>{tx.description}</td>
+                  <td>{accounts.find(a => a.id === tx.main_account_id)?.name_ar || '-'}</td>
+                  <td><span className={`badge ${tx.direction === 'وارد' ? 'badge-success' : 'badge-danger'}`}>{tx.direction}</span></td>
+                  <td style={{ fontWeight:'700', color: tx.direction === 'وارد' ? 'var(--success)' : 'var(--danger)' }}>
+                    {(tx.amount || 0).toLocaleString()}
+                  </td>
+                  <td><span className="badge">{tx.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
