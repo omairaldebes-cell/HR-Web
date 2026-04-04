@@ -2,6 +2,13 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { calculatePenaltyHours, parseExcel } from './utils';
 import { db } from './firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
+import { AccountingProvider } from './accounting/context/AccountingContext';
+import AccountingDashboard from './accounting/AccountingDashboard';
+import DailyJournal from './accounting/DailyJournal';
+import { AccountsView, CategoriesView, CounterpartiesView } from './accounting/MasterDataViews';
+import { MonthlyReport } from './accounting/ReportViews';
+import ImportLegacy from './accounting/ImportLegacy';
+import { CustomFieldsBuilder, AccountingSettings } from './accounting/AdminViews';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 import { 
   Users, 
@@ -28,7 +35,10 @@ import {
   TrendingUp,
   AlertTriangle,
   CheckCircle,
-  X
+  X,
+  BookOpen,
+  Wallet,
+  Tag
 } from 'lucide-react';
 
 const ARABIC_MONTHS = ['كانون الثاني', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران', 'تموز', 'آب', 'أيلول', 'تشرين الأول', 'تشرين الثاني', 'كانون الأول'];
@@ -53,18 +63,32 @@ const DEFAULT_SETTINGS = {
   themeMode: 'dark'
 };
 
-const navItems = [
-  { id: 'dashboard', label: 'لوحة القيادة', icon: LayoutDashboard },
-  { id: 'analytics', label: 'التحليلات', icon: BarChart2 },
-  { id: 'employees', label: 'إدارة الموظفين', icon: Users },
-  { id: 'attendance', label: 'تسجيل الحضور', icon: Clock },
-  { id: 'records', label: 'سجل الحضور الكامل', icon: FileText },
-  { id: 'leaves', label: 'طلبات الإجازة', icon: CalendarCheck },
-  { id: 'advances', label: 'السلف النقدية', icon: Banknote },
-  { id: 'upload', label: 'رفع ملف إكسل', icon: Upload },
-  { id: 'settings', label: 'الإعدادات', icon: Settings },
-  { id: 'users', label: 'إدارة المستخدمين', icon: UserCog },
+const HR_NAV = [
+  { id: 'dashboard',  label: 'لوحة القيادة',       icon: LayoutDashboard, group: 'hr' },
+  { id: 'analytics',  label: 'التحليلات',           icon: BarChart2,       group: 'hr' },
+  { id: 'employees',  label: 'إدارة الموظفين',      icon: Users,           group: 'hr' },
+  { id: 'attendance', label: 'تسجيل الحضور',       icon: Clock,           group: 'hr' },
+  { id: 'records',    label: 'سجل الحضور الكامل',  icon: FileText,        group: 'hr' },
+  { id: 'leaves',     label: 'طلبات الإجازة',      icon: CalendarCheck,   group: 'hr' },
+  { id: 'advances',   label: 'السلف النقدية',      icon: Banknote,        group: 'hr' },
+  { id: 'upload',     label: 'رفع ملف إكسل',       icon: Upload,          group: 'hr' },
+  { id: 'settings',   label: 'الإعدادات',           icon: Settings,        group: 'hr' },
+  { id: 'users',      label: 'إدارة المستخدمين',   icon: UserCog,         group: 'hr' },
 ];
+
+const ACC_NAV = [
+  { id: 'acc_dashboard',  label: 'لوحة المحاسبة',       icon: LayoutDashboard, group: 'acc' },
+  { id: 'acc_daily',      label: 'دفتر اليومية',         icon: BookOpen,        group: 'acc' },
+  { id: 'acc_accounts',   label: 'الحسابات والدفاتر',    icon: Wallet,          group: 'acc' },
+  { id: 'acc_categories', label: 'الفئات',               icon: Tag,             group: 'acc' },
+  { id: 'acc_parties',    label: 'الأطراف',              icon: Users,           group: 'acc' },
+  { id: 'acc_report',     label: 'التقارير الشهرية',    icon: BarChart2,       group: 'acc' },
+  { id: 'acc_import',     label: 'استيراد Excel',        icon: Upload,          group: 'acc' },
+  { id: 'acc_fields',     label: 'الحقول المخصصة',      icon: FileSpreadsheet, group: 'acc' },
+  { id: 'acc_settings',   label: 'إعدادات المحاسبة',    icon: Settings,        group: 'acc' },
+];
+
+const navItems = [...HR_NAV, ...ACC_NAV];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1191,15 +1215,20 @@ export default function App() {
       e.preventDefault();
       if (!username.trim() || !password.trim()) return;
 
+      const existingUser = editId ? appUsers.find(u => u.id === editId) : null;
       const data = {
         username: username.trim(),
         password: password.trim(),
         permissions: selectedPermissions,
-        role: 'user'
+        role: existingUser ? existingUser.role : 'user'
       };
 
       if (editId) {
         await updateDoc(doc(db, 'app_users', editId), data);
+        // If editing self, update active session state
+        if (loggedInUser.id === editId) {
+          setLoggedInUser({ ...loggedInUser, ...data });
+        }
         setEditId(null);
       } else {
         await addDoc(collection(db, 'app_users'), data);
@@ -1281,25 +1310,50 @@ export default function App() {
   }
 
 
+  const isAccTab = activeTab.startsWith('acc_');
+
   const renderActiveView = () => {
+    // HR views
     switch (activeTab) {
-      case 'dashboard': return <Dashboard />;
-      case 'analytics': return <AnalyticsView />;
-      case 'employees': return <EmployeesView />;
+      case 'dashboard':  return <Dashboard />;
+      case 'analytics':  return <AnalyticsView />;
+      case 'employees':  return <EmployeesView />;
       case 'attendance': return <AttendanceView />;
-      case 'records': return <RecordsView />;
-      case 'leaves': return <LeaveRequestsView />;
-      case 'advances': return <AdvancesView />;
-      case 'upload': return <UploadView />;
-      case 'settings': return <SettingsView />;
-      case 'users': return <UsersView />;
-      default: return null;
+      case 'records':    return <RecordsView />;
+      case 'leaves':     return <LeaveRequestsView />;
+      case 'advances':   return <AdvancesView />;
+      case 'upload':     return <UploadView />;
+      case 'settings':   return <SettingsView />;
+      case 'users':      return <UsersView />;
     }
+    // Accounting views — all wrapped in AccountingProvider
+    const accView = (() => {
+      switch (activeTab) {
+        case 'acc_dashboard':  return <AccountingDashboard setActiveTab={setActiveTab} />;
+        case 'acc_daily':      return <DailyJournal showToast={showToast} />;
+        case 'acc_accounts':   return <AccountsView showToast={showToast} />;
+        case 'acc_categories': return <CategoriesView showToast={showToast} />;
+        case 'acc_parties':    return <CounterpartiesView showToast={showToast} />;
+        case 'acc_report':     return <MonthlyReport />;
+        case 'acc_import':     return <ImportLegacy showToast={showToast} />;
+        case 'acc_fields':     return <CustomFieldsBuilder showToast={showToast} />;
+        case 'acc_settings':   return <AccountingSettings showToast={showToast} />;
+        default: return null;
+      }
+    })();
+    if (accView) {
+      return (
+        <AccountingProvider loggedInUser={loggedInUser}>
+          {accView}
+        </AccountingProvider>
+      );
+    }
+    return null;
   };
 
   // Filter nav items based on permissions
   const allowedNavItems = navItems.filter(item => 
-    loggedInUser?.permissions?.includes(item.id) || item.id === 'analytics' || (loggedInUser?.role === 'admin' && item.id === 'users')
+    loggedInUser?.role === 'admin' || loggedInUser?.permissions?.includes(item.id) || item.id === 'analytics'
   );
 
   return (
@@ -1319,15 +1373,34 @@ export default function App() {
         </div>
         
         <nav className="sidebar-nav">
-          {allowedNavItems.map(tab => {
+          {/* HR section */}
+          {isSidebarOpen && <div style={{padding:'0.4rem 0.75rem',fontSize:'0.7rem',color:'var(--text-secondary)',textTransform:'uppercase',letterSpacing:'0.08em',opacity:0.7,marginTop:'0.25rem'}}>الموارد البشرية</div>}
+          {allowedNavItems.filter(t=>t.group==='hr').map(tab => {
             const Icon = tab.icon;
             return (
-              <div 
+              <div
                 key={tab.id}
                 className={`sidebar-nav-item ${activeTab === tab.id ? 'active' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
               >
-                <Icon size={24} /> 
+                <Icon size={22} />
+                <span className="sidebar-label">{tab.label}</span>
+              </div>
+            );
+          })}
+          {/* Divider */}
+          <div style={{height:'1px',background:'var(--border)',margin:'0.5rem 0.75rem'}} />
+          {/* Accounting section */}
+          {isSidebarOpen && <div style={{padding:'0.4rem 0.75rem',fontSize:'0.7rem',color:'var(--primary)',textTransform:'uppercase',letterSpacing:'0.08em',opacity:0.9,fontWeight:'700'}}>دفتر اليومية الذكي</div>}
+          {allowedNavItems.filter(t=>t.group==='acc').map(tab => {
+            const Icon = tab.icon;
+            return (
+              <div
+                key={tab.id}
+                className={`sidebar-nav-item ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <Icon size={22} />
                 <span className="sidebar-label">{tab.label}</span>
               </div>
             );
@@ -1350,7 +1423,7 @@ export default function App() {
       <div className="main-wrapper">
         <header className="top-header">
           <div className="header-title">
-            نظام إدارة الموارد البشرية
+            {isAccTab ? 'دفتر اليومية الذكي' : 'نظام إدارة الموارد البشرية'}
           </div>
           <div style={{display:'flex', alignItems:'center', gap:'1rem'}}>
             {lowLeaveAlerts.length > 0 && (
