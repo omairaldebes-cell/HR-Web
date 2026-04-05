@@ -5,7 +5,7 @@ import { BarChart2, BookOpen, Calendar, Filter, X, ArrowUpCircle, ArrowDownCircl
 import * as XLSX from 'xlsx';
 
 export function MonthlyReport() {
-  const { transactions, categories, accounts } = useAccounting();
+  const { transactions, categories, accounts, counterparties } = useAccounting();
   
   const ARABIC_MONTHS = ['كانون الثاني','شباط','آذار','نيسان','أيار','حزيران','تموز','آب','أيلول','تشرين الأول','تشرين الثاني','كانون الأول'];
 
@@ -18,6 +18,7 @@ export function MonthlyReport() {
   const [endDate, setEndDate] = useState(lastDay);
   const [filterAccount, setFilterAccount] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterCounterparty, setFilterCounterparty] = useState('');
   const [filterDirection, setFilterDirection] = useState('');
 
   // 1. Filtered Transactions
@@ -28,10 +29,11 @@ export function MonthlyReport() {
       if (endDate && d > endDate) return false;
       if (filterAccount && t.main_account_id !== filterAccount) return false;
       if (filterCategory && t.category_id !== filterCategory) return false;
+      if (filterCounterparty && t.counterparty_id !== filterCounterparty) return false;
       if (filterDirection && t.direction !== filterDirection) return false;
       return true;
     });
-  }, [transactions, startDate, endDate, filterAccount, filterCategory, filterDirection]);
+  }, [transactions, startDate, endDate, filterAccount, filterCategory, filterCounterparty, filterDirection]);
 
   // 2. Generate month rows based on range
   const monthsInRange = useMemo(() => {
@@ -107,6 +109,7 @@ export function MonthlyReport() {
   const clearFilters = () => {
     setFilterAccount('');
     setFilterCategory('');
+    setFilterCounterparty('');
     setFilterDirection('');
     setStartDate(firstDay);
     setEndDate(lastDay);
@@ -153,6 +156,13 @@ export function MonthlyReport() {
               <option value="">الكل (وارد/صادر)</option>
               <option value="وارد">وارد فقط</option>
               <option value="صادر">صادر فقط</option>
+            </select>
+          </div>
+          <div className="form-group" style={{ margin:0 }}>
+            <label style={{ fontSize:'0.75rem' }}><Users size={12}/> المتبرع</label>
+            <select value={filterCounterparty} onChange={e => setFilterCounterparty(e.target.value)}>
+              <option value="">الكل</option>
+              {counterparties.map(cp => <option key={cp.id} value={cp.id}>{cp.name_ar}</option>)}
             </select>
           </div>
         </div>

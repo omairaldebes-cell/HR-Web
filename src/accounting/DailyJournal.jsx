@@ -59,6 +59,7 @@ export default function DailyJournal({ showToast }) {
   const [filterMonth, setFilterMonth] = useState(currentMonth);
   const [filterAccount, setFilterAccount] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterCounterparty, setFilterCounterparty] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
 
@@ -119,6 +120,7 @@ export default function DailyJournal({ showToast }) {
           }
         }
         if (filterCategory && tx.category_id !== filterCategory) return false;
+        if (filterCounterparty && tx.counterparty_id !== filterCounterparty) return false;
         if (filterType && tx.direction !== filterType) return false;
         if (filterSearch) {
           const s = filterSearch.toLowerCase();
@@ -239,6 +241,13 @@ export default function DailyJournal({ showToast }) {
               {categories.map(c => <option key={c.id} value={c.id}>{c.name_ar}</option>)}
             </select>
           </div>
+          <div className="form-group" style={{ margin:0, flex:'1', minWidth:'140px' }}>
+            <label style={{ fontSize:'0.8rem' }}>المتبرع</label>
+            <select value={filterCounterparty} onChange={e => setFilterCounterparty(e.target.value)}>
+              <option value="">الكل</option>
+              {counterparties.map(cp => <option key={cp.id} value={cp.id}>{cp.name_ar}</option>)}
+            </select>
+          </div>
           <div className="form-group" style={{ margin:0, flex:'1', minWidth:'110px' }}>
             <label style={{ fontSize:'0.8rem' }}>النوع</label>
             <select value={filterType} onChange={e => setFilterType(e.target.value)}>
@@ -254,8 +263,8 @@ export default function DailyJournal({ showToast }) {
               <input type="text" value={filterSearch} onChange={e => setFilterSearch(e.target.value)} placeholder="بيان، رقم مرجع..." style={{ paddingRight:'2rem' }}/>
             </div>
           </div>
-          {(filterAccount || filterCategory || filterType || filterSearch) && (
-            <button className="btn btn-outline" onClick={() => { setFilterAccount(''); setFilterCategory(''); setFilterType(''); setFilterSearch(''); }}
+          {(filterAccount || filterCategory || filterCounterparty || filterType || filterSearch) && (
+            <button className="btn btn-outline" onClick={() => { setFilterAccount(''); setFilterCategory(''); setFilterCounterparty(''); setFilterType(''); setFilterSearch(''); }}
               style={{ alignSelf:'flex-end', padding:'0.5rem', color:'var(--danger)' }}>
               <X size={16}/>
             </button>
