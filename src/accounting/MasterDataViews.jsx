@@ -3,7 +3,7 @@ import { useAccounting } from './context/AccountingContext';
 import {
   createAccount, updateAccount, deleteAccount,
   createCategory, updateCategory, archiveCategory,
-  createCounterparty, COLL
+  createCounterparty, updateCounterparty, deleteCounterparty, COLL
 } from './accountingService';
 import { PlusCircle, Wallet, Edit, Trash2, Archive, Users, BadgeDollarSign, Tag } from 'lucide-react';
 import { ACCOUNT_TYPES, COUNTERPARTY_TYPES, CATEGORY_TYPES } from './constants';
@@ -253,29 +253,52 @@ export function CategoriesView({ showToast }) {
 
 // =================== COUNTERPARTIES VIEW ===================
 export function CounterpartiesView({ showToast }) {
-  const { counterparties, isAdmin, loggedInUser, canWrite } = useAccounting();
+  const { counterparties, isAdmin, loggedInUser, canWrite, canDelete } = useAccounting();
   const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ name_ar:'', type:'PERSON', phone:'', notes:'' });
   const set = (k,v) => setForm(f => ({...f,[k]:v}));
+
+  const EMPTY = { name_ar:'', type:'PERSON', phone:'', notes:'' };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name_ar.trim()) return showToast('يرجى كتابة الاسم', 'error');
-    await createCounterparty(form, loggedInUser?.username);
-    showToast('تمت الإضافة', 'success');
-    setForm({ name_ar:'', type:'PERSON', phone:'', notes:'' });
+    if (editId) {
+      await updateCounterparty(editId, form);
+      showToast('تم تحديث بيانات المتبرع', 'success');
+    } else {
+      await createCounterparty(form, loggedInUser?.username);
+      showToast('تمت الإضافة', 'success');
+    }
+    setForm(EMPTY);
+    setEditId(null);
     setShowForm(false);
+  };
+
+  const handleEdit = (cp) => {
+    setEditId(cp.id);
+    setForm({ name_ar: cp.name_ar, type: cp.type, phone: cp.phone || '', notes: cp.notes || '' });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (cp) => {
+    if (!window.confirm(`حذف المتبرع “${cp.name_ar}”؟`)) return;
+    await deleteCounterparty(cp.id);
+    showToast('تم الحذف', 'info');
   };
 
   return (
     <div className="animate-fade-in" style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
       <div className="card-header">
         <h2 className="card-title"><Users /> المتبرعون</h2>
-        {canWrite && <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}><PlusCircle size={16}/> إضافة متبرع</button>}
+        {canWrite && <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm(EMPTY); }}><PlusCircle size={16}/> إضافة متبرع</button>}
       </div>
 
       {showForm && canWrite && (
         <div className="card animate-fade-in" style={{ border:'2px solid var(--primary)' }}>
+          <h3 className="card-title" style={{ marginBottom:'1rem' }}>{editId ? 'تعديل بيانات المتبرع' : 'إضافة متبرع جديد'}</h3>
           <form onSubmit={handleSubmit}>
             <div className="stats-grid">
               <div className="form-group"><label>الاسم *</label><input type="text" value={form.name_ar} onChange={e=>set('name_ar',e.target.value)} required /></div>
@@ -289,8 +312,8 @@ export function CounterpartiesView({ showToast }) {
               <div className="form-group"><label>ملاحظات</label><input type="text" value={form.notes} onChange={e=>set('notes',e.target.value)} /></div>
             </div>
             <div style={{ display:'flex', gap:'0.75rem', marginTop:'1rem' }}>
-              <button type="submit" className="btn btn-primary" style={{ flex:1 }}>إضافة</button>
-              <button type="button" className="btn btn-outline" onClick={() => setShowForm(false)}>إلغاء</button>
+              <button type="submit" className="btn btn-primary" style={{ flex:1 }}>{editId ? 'حفظ التعديلات' : 'إضافة'}</button>
+              <button type="button" className="btn btn-outline" onClick={() => { setShowForm(false); setEditId(null); setForm(EMPTY); }}>إلغاء</button>
             </div>
           </form>
         </div>
@@ -299,16 +322,36 @@ export function CounterpartiesView({ showToast }) {
       <div className="card">
         <div className="table-container">
           <table>
-            <thead><tr><th>الاسم</th><th>النوع</th><th>الهاتف</th><th>ملاحظات</th></tr></thead>
+            <thead><tr>
+              <th>الاسم</th>
+              <th>النوع</th>
+              <th>الهاتف</th>
+              <th>ملاحظات</th>
+              {(canWrite || canDelete) && <th>إجراءات</th>}
+            </tr></thead>
             <tbody>
               {counterparties.length === 0 ? (
-                <tr><td colSpan={4} style={{ textAlign:'center', color:'var(--text-secondary)', padding:'2rem' }}>لا توجد أطراف مضافة بعد</td></tr>
+                <tr><td colSpan={5} style={{ textAlign:'center', color:'var(--text-secondary)', padding:'2rem' }}>لا يوجد متبرعون مضافون بعد</td></tr>
               ) : counterparties.map(cp => (
                 <tr key={cp.id}>
                   <td style={{ fontWeight:'600' }}>{cp.name_ar}</td>
                   <td>{COUNTERPARTY_TYPES[cp.type] || cp.type}</td>
                   <td style={{ direction:'ltr', textAlign:'right' }}>{cp.phone || '-'}</td>
                   <td style={{ color:'var(--text-secondary)', fontSize:'0.85rem' }}>{cp.notes || '-'}</td>
+                  {(canWrite || canDelete) && (
+                    <td style={{ display:'flex', gap:'0.3rem' }}>
+                      {canWrite && (
+                        <button className="btn btn-secondary" style={{ padding:'0.25rem 0.5rem' }} onClick={() => handleEdit(cp)} title="تعديل">
+                          <Edit size={13}/>
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button className="btn btn-danger" style={{ padding:'0.25rem 0.5rem' }} onClick={() => handleDelete(cp)} title="حذف">
+                          <Trash2 size={13}/>
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

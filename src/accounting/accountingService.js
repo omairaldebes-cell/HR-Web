@@ -83,6 +83,12 @@ export const archiveCategory = (id) =>
 export const createCounterparty = (data, user) =>
   create(COLL.COUNTERPARTIES, { ...data, created_by: user });
 
+export const updateCounterparty = (id, data) =>
+  update(COLL.COUNTERPARTIES, id, data);
+
+export const deleteCounterparty = (id) =>
+  remove(COLL.COUNTERPARTIES, id);
+
 // ---- CUSTOM FIELDS ----
 export const createCustomField = (data, user) =>
   create(COLL.CUSTOM_FIELDS, { ...data, created_by: user });
