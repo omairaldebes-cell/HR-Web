@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAccounting } from './context/AccountingContext';
-import { createTransaction, deleteTransaction } from './accountingService';
+import { createTransaction, deleteTransaction, updateTransaction } from './accountingService';
 import {
   BookOpen, PlusCircle, Trash2, Edit, Search, Download, Printer,
   TrendingUp, TrendingDown, Wallet, Filter, X, ChevronDown
@@ -63,9 +63,16 @@ export default function DailyJournal({ showToast }) {
         month_period: form.transaction_date.slice(0, 7),
       };
 
-      await createTransaction(data, loggedInUser?.username);
-      showToast('تم حفظ القيد بنجاح', 'success');
+      if (editId) {
+        await updateTransaction(editId, data, loggedInUser?.username);
+        showToast('تم تحديث القيد بنجاح', 'success');
+      } else {
+        await createTransaction(data, loggedInUser?.username);
+        showToast('تم حفظ القيد بنجاح', 'success');
+      }
+
       setForm({ ...EMPTY_FORM });
+      setEditId(null);
       setShowForm(false);
     } catch (err) {
       console.error(err);
@@ -84,7 +91,13 @@ export default function DailyJournal({ showToast }) {
     return transactions
       .filter(tx => {
         if (filterMonth && !tx.transaction_date?.startsWith(filterMonth)) return false;
-        if (filterAccount && tx.main_account_id !== filterAccount) return false;
+        if (filterAccount) {
+          if (tx.direction === 'تحويل') {
+            if (tx.source_account_id !== filterAccount && tx.destination_account_id !== filterAccount) return false;
+          } else {
+             if (tx.main_account_id !== filterAccount) return false;
+          }
+        }
         if (filterCategory && tx.category_id !== filterCategory) return false;
         if (filterType && tx.direction !== filterType) return false;
         if (filterSearch) {
@@ -98,7 +111,29 @@ export default function DailyJournal({ showToast }) {
       .sort((a, b) => (a.transaction_date > b.transaction_date ? 1 : -1) || (a.created_at||0) - (b.created_at||0));
   }, [transactions, filterMonth, filterAccount, filterCategory, filterType, filterSearch]);
 
-  const filteredWithBalance = useMemo(() => calculateRunningBalance(filteredRaw), [filteredRaw, calculateRunningBalance]);
+  const filteredWithBalance = useMemo(() => {
+    let startingBalance = 0;
+    // Calculate accurate starting balance if an account is selected
+    if (filterAccount) {
+      const acc = accounts.find(a => a.id === filterAccount);
+      startingBalance = acc ? (Number(acc.opening_balance) || 0) : 0;
+      
+      // Include history before the selected month
+      if (filterMonth) {
+         const pastTxs = transactions.filter(t => t.status === 'مرحّل' && t.transaction_date < filterMonth);
+         pastTxs.forEach(tx => {
+            if (tx.direction !== 'تحويل' && tx.main_account_id === filterAccount) {
+              startingBalance += tx.direction === 'وارد' ? (tx.amount || 0) : -(tx.amount || 0);
+            } else if (tx.direction === 'تحويل') {
+              if (tx.source_account_id === filterAccount) startingBalance -= (tx.amount || 0);
+              if (tx.destination_account_id === filterAccount) startingBalance += (tx.amount || 0);
+            }
+         });
+      }
+    }
+    
+    return calculateRunningBalance(filteredRaw, startingBalance, filterAccount);
+  }, [filteredRaw, calculateRunningBalance, filterAccount, filterMonth, accounts, transactions]);
   const displayRows = [...filteredWithBalance].reverse();
 
   const summary = useMemo(() => getMonthSummary(filterMonth), [filterMonth, getMonthSummary]);
@@ -354,13 +389,13 @@ export default function DailyJournal({ showToast }) {
                 <th style={{ background:'var(--primary)', color:'white' }}>الرصيد</th>
                 <th>مرجع</th>
                 {visibleCustomFields.map(cf => <th key={cf.id}>{cf.label}</th>)}
-                {canDelete && <th>إجراءات</th>}
+                {(canWrite || canDelete) && <th>إجراءات</th>}
               </tr>
             </thead>
             <tbody>
               {displayRows.length === 0 ? (
                 <tr>
-                  <td colSpan={10 + visibleCustomFields.length + (canDelete ? 1 : 0)} style={{ textAlign:'center', padding:'3rem', color:'var(--text-secondary)' }}>
+                  <td colSpan={10 + visibleCustomFields.length + ((canWrite || canDelete) ? 1 : 0)} style={{ textAlign:'center', padding:'3rem', color:'var(--text-secondary)' }}>
                     لا توجد قيود تطابق الفلاتر المحددة
                   </td>
                 </tr>
@@ -385,11 +420,24 @@ export default function DailyJournal({ showToast }) {
                   {visibleCustomFields.map(cf => (
                     <td key={cf.id} style={{ fontSize:'0.85rem' }}>{tx.custom_values?.[cf.id] || '-'}</td>
                   ))}
-                  {canDelete && (
-                    <td>
-                      <button onClick={() => handleDelete(tx)} className="btn btn-danger" style={{ padding:'0.25rem 0.5rem' }} title="حذف">
-                        <Trash2 size={13}/>
-                      </button>
+                  {(canWrite || canDelete) && (
+                    <td style={{ display:'flex', gap:'0.25rem' }}>
+                      {canWrite && (
+                        <button onClick={() => { 
+                          setForm({...tx}); 
+                          setEditId(tx.id); 
+                          setShowForm(true); 
+                          // Scroll to top where the form gets rendered
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                         }} className="btn btn-secondary" style={{ padding:'0.25rem 0.5rem' }} title="تعديل">
+                          <Edit size={13}/>
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => handleDelete(tx)} className="btn btn-danger" style={{ padding:'0.25rem 0.5rem' }} title="حذف">
+                          <Trash2 size={13}/>
+                        </button>
+                      )}
                     </td>
                   )}
                 </tr>

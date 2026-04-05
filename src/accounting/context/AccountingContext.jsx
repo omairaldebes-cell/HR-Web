@@ -96,18 +96,38 @@ export function AccountingProvider({ children, loggedInUser }) {
 
   // Derived computed balance per account
   const getAccountBalance = useCallback((accountId) => {
-    return transactions
-      .filter(tx => tx.main_account_id === accountId && tx.status === 'مرحّل')
-      .reduce((sum, tx) => {
-        return tx.direction === 'وارد' ? sum + (tx.amount || 0) : sum - (tx.amount || 0);
-      }, 0);
-  }, [transactions]);
+    const acc = accounts.find(a => a.id === accountId);
+    let balance = acc ? (Number(acc.opening_balance) || 0) : 0;
+
+    transactions.filter(tx => tx.status === 'مرحّل').forEach(tx => {
+      if (tx.direction !== 'تحويل' && tx.main_account_id === accountId) {
+        balance += tx.direction === 'وارد' ? (tx.amount || 0) : -(tx.amount || 0);
+      } else if (tx.direction === 'تحويل') {
+        if (tx.source_account_id === accountId) balance -= (tx.amount || 0);
+        if (tx.destination_account_id === accountId) balance += (tx.amount || 0);
+      }
+    });
+
+    return balance;
+  }, [transactions, accounts]);
 
   // Running balance for a sorted list of transactions
-  const calculateRunningBalance = useCallback((sortedTxs, openingBalance = 0) => {
-    let balance = openingBalance;
+  const calculateRunningBalance = useCallback((sortedTxs, openingBalance = 0, specificAccountId = null) => {
+    let balance = Number(openingBalance) || 0;
     return sortedTxs.map(tx => {
-      const change = tx.direction === 'وارد' ? (tx.amount || 0) : -(tx.amount || 0);
+      let change = 0;
+      if (tx.direction !== 'تحويل') {
+        change = tx.direction === 'وارد' ? (tx.amount || 0) : -(tx.amount || 0);
+      } else {
+        // If we are filtering by a specific account, only affect the balance if it's the source or target
+        if (specificAccountId) {
+          if (tx.source_account_id === specificAccountId) change = -(tx.amount || 0);
+          if (tx.destination_account_id === specificAccountId) change = (tx.amount || 0);
+        } else {
+          // Without a specific account filter, a transfer is mathematically 0 net globally
+          change = 0;
+        }
+      }
       balance += change;
       return { ...tx, running_balance: balance };
     });

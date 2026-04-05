@@ -1,16 +1,62 @@
 import { useMemo, useState } from 'react';
 import { useAccounting } from './context/AccountingContext';
+import { createTransaction } from './accountingService';
 import {
   LayoutDashboard, TrendingUp, TrendingDown, Wallet, ArrowUpCircle,
-  ArrowDownCircle, ArrowLeftRight, PlusCircle, Users, BookOpen, ChevronRight
+  ArrowDownCircle, ArrowLeftRight, PlusCircle, Users, BookOpen, ChevronRight,
+  Scale, CheckCircle, X
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
 export default function AccountingDashboard({ setActiveTab }) {
-  const { transactions, accounts, getAccountBalance, getMonthSummary, company, canWrite } = useAccounting();
+  const { transactions, accounts, getAccountBalance, getMonthSummary, company, canWrite, loggedInUser } = useAccounting();
+
+  const [showRecon, setShowRecon] = useState(false);
+  const [reconForm, setReconForm] = useState({ accountId: '', actualCash: '' });
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = today.slice(0, 7);
+
+  const expectedCash = reconForm.accountId ? getAccountBalance(reconForm.accountId) : 0;
+  const actualCashNum = parseFloat(reconForm.actualCash) || 0;
+  const cashDifference = reconForm.actualCash ? actualCashNum - expectedCash : 0;
+
+  const handleReconcile = async (e) => {
+    e.preventDefault();
+    if (!reconForm.accountId || !reconForm.actualCash) return;
+    if (cashDifference === 0) {
+      alert('الرصيد الفعلي يطابق رصيد النظام. لا توجد حاجة لتسوية.');
+      setShowRecon(false);
+      return;
+    }
+    
+    const dir = cashDifference > 0 ? 'وارد' : 'صادر';
+    const amount = Math.abs(cashDifference);
+    const data = {
+      transaction_date: today,
+      direction: dir,
+      transaction_type: 'تسوية',
+      main_account_id: reconForm.accountId,
+      amount,
+      description: `تسوية جردية - الرصيد الفعلي: ${actualCashNum.toLocaleString('en-US')}`,
+      category_id: '',
+      counterparty_id: '',
+      reference_no: 'تسوية-جرد',
+      notes: `الفرق: ${cashDifference}`,
+      custom_values: {},
+      month_period: currentMonth
+    };
+
+    try {
+       await createTransaction(data, loggedInUser?.username);
+       alert('تم إنشاء قيد التسوية الجردية بنجاح.');
+       setShowRecon(false);
+       setReconForm({ accountId: '', actualCash: ''});
+    } catch(err) {
+       console.error(err);
+       alert('حدث خطأ أثناء حفظ التسوية');
+    }
+  };
 
   const todayTxs = transactions.filter(tx => tx.transaction_date === today && tx.status === 'مرحّل');
   const todayIn  = todayTxs.filter(t => t.direction === 'وارد').reduce((s, t) => s + (t.amount || 0), 0);
@@ -77,6 +123,56 @@ export default function AccountingDashboard({ setActiveTab }) {
               {btn.label}
             </button>
           ))}
+          <button
+            className="btn btn-outline"
+            onClick={() => setShowRecon(!showRecon)}
+            style={{ display:'flex', alignItems:'center', gap:'0.4rem', borderColor: '#8b5cf6', color: '#8b5cf6', fontWeight:'600' }}
+          >
+            <Scale size={16}/> مطابقة جردية
+          </button>
+        </div>
+      )}
+
+      {/* Recon Form */}
+      {showRecon && canWrite && (
+        <div className="card animate-fade-in" style={{ border:'2px solid #8b5cf6', marginBottom:'1rem' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
+             <h3 className="card-title" style={{color:'#8b5cf6'}}><Scale size={18}/> مطابقة جردية للصندوق</h3>
+             <button className="btn" style={{background:'none', color:'var(--text-secondary)'}} onClick={() => setShowRecon(false)}><X size={18}/></button>
+          </div>
+          <form onSubmit={handleReconcile}>
+             <div className="stats-grid">
+               <div className="form-group">
+                 <label>الصندوق / الحساب</label>
+                 <select value={reconForm.accountId} onChange={e => setReconForm({...reconForm, accountId: e.target.value})} required>
+                   <option value="">-- اختر --</option>
+                   {accounts.filter(a => a.is_active !== false).map(a => <option key={a.id} value={a.id}>{a.name_ar}</option>)}
+                 </select>
+               </div>
+               <div className="form-group">
+                 <label>الرصيد الفعلي (النقد الموجود فعلياً)</label>
+                 <input type="number" step="any" value={reconForm.actualCash} onChange={e => setReconForm({...reconForm, actualCash: e.target.value})} required placeholder="0" />
+               </div>
+             </div>
+             {reconForm.accountId && reconForm.actualCash && (
+               <div style={{ marginTop:'1rem', padding:'1rem', background:'var(--bg-color)', borderRadius:'var(--radius-md)', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'1rem' }}>
+                 <div>
+                   <div style={{ fontSize:'0.9rem', color:'var(--text-secondary)' }}>رصيد الحساب المسجل: <span style={{fontWeight:'bold', color:'var(--text-primary)', fontSize:'1rem'}}>{expectedCash.toLocaleString('en-US')}</span></div>
+                   <div style={{ fontSize:'0.9rem', color:'var(--text-secondary)', marginTop:'0.2rem' }}>الفرق: <span style={{fontWeight:'bold', fontSize:'1rem', color: cashDifference > 0 ? 'var(--success)' : cashDifference < 0 ? 'var(--danger)' : 'var(--text-primary)'}}>{cashDifference.toLocaleString('en-US')}</span></div>
+                 </div>
+                 <div style={{ textAlign:'left' }}>
+                   {cashDifference === 0 ? (
+                     <span style={{color:'var(--success)', fontWeight:'bold', display:'flex', alignItems:'center', gap:'0.3rem'}}><CheckCircle size={18}/> متطابق تماماً</span>
+                   ) : (
+                     <span style={{color:'var(--warning)', fontSize:'0.85rem' }}>سيتم إنشاء قيد دخل/خرج تلقائي بقيمة <b>{Math.abs(cashDifference).toLocaleString('en-US')}</b> بحالة <b>"{cashDifference > 0 ? 'وارد' : 'صادر'}"</b> لتسوية الفرق.</span>
+                   )}
+                 </div>
+               </div>
+             )}
+             <div style={{ marginTop:'1.25rem' }}>
+               <button type="submit" className="btn btn-primary" style={{ width:'100%', background:'#8b5cf6', borderColor:'#8b5cf6', fontWeight:'700' }}>تسوية ورصد الفروقات</button>
+             </div>
+          </form>
         </div>
       )}
 
