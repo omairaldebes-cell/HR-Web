@@ -27,7 +27,7 @@ const EMPTY_FORM = {
 
 export default function DailyJournal({ showToast }) {
   const { transactions, accounts, categories, counterparties, customFields, getMonthSummary,
-          calculateRunningBalance, isAdmin, loggedInUser } = useAccounting();
+          calculateRunningBalance, isAdmin, loggedInUser, canWrite, canDelete } = useAccounting();
 
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [showForm, setShowForm] = useState(false);
@@ -136,10 +136,12 @@ export default function DailyJournal({ showToast }) {
           <button className="btn btn-outline" onClick={() => window.print()} style={{ display:'flex', alignItems:'center', gap:'0.3rem' }}>
             <Printer size={15}/> طباعة
           </button>
-          <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({...EMPTY_FORM}); }}
-            style={{ display:'flex', alignItems:'center', gap:'0.3rem' }}>
-            <PlusCircle size={16}/> إضافة قيد جديد
-          </button>
+          {canWrite && (
+            <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({...EMPTY_FORM}); }}
+              style={{ display:'flex', alignItems:'center', gap:'0.3rem' }}>
+              <PlusCircle size={16}/> إضافة قيد جديد
+            </button>
+          )}
         </div>
       </div>
 
@@ -352,13 +354,13 @@ export default function DailyJournal({ showToast }) {
                 <th style={{ background:'var(--primary)', color:'white' }}>الرصيد</th>
                 <th>مرجع</th>
                 {visibleCustomFields.map(cf => <th key={cf.id}>{cf.label}</th>)}
-                {isAdmin && <th>إجراءات</th>}
+                {canDelete && <th>إجراءات</th>}
               </tr>
             </thead>
             <tbody>
               {displayRows.length === 0 ? (
                 <tr>
-                  <td colSpan={10 + visibleCustomFields.length + (isAdmin ? 1 : 0)} style={{ textAlign:'center', padding:'3rem', color:'var(--text-secondary)' }}>
+                  <td colSpan={10 + visibleCustomFields.length + (canDelete ? 1 : 0)} style={{ textAlign:'center', padding:'3rem', color:'var(--text-secondary)' }}>
                     لا توجد قيود تطابق الفلاتر المحددة
                   </td>
                 </tr>
@@ -383,7 +385,7 @@ export default function DailyJournal({ showToast }) {
                   {visibleCustomFields.map(cf => (
                     <td key={cf.id} style={{ fontSize:'0.85rem' }}>{tx.custom_values?.[cf.id] || '-'}</td>
                   ))}
-                  {isAdmin && (
+                  {canDelete && (
                     <td>
                       <button onClick={() => handleDelete(tx)} className="btn btn-danger" style={{ padding:'0.25rem 0.5rem' }} title="حذف">
                         <Trash2 size={13}/>

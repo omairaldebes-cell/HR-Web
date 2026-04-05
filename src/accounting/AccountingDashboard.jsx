@@ -7,7 +7,7 @@ import {
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
 export default function AccountingDashboard({ setActiveTab }) {
-  const { transactions, accounts, getAccountBalance, getMonthSummary, company } = useAccounting();
+  const { transactions, accounts, getAccountBalance, getMonthSummary, company, canWrite } = useAccounting();
 
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = today.slice(0, 7);
@@ -58,25 +58,27 @@ export default function AccountingDashboard({ setActiveTab }) {
       </div>
 
       {/* Quick Action Buttons */}
-      <div style={{ display:'flex', gap:'0.75rem', flexWrap:'wrap' }}>
-        {[
-          { label:'إضافة وارد', icon: ArrowUpCircle, tab:'acc_daily', color:'var(--success)', dir:'وارد' },
-          { label:'إضافة صادر', icon: ArrowDownCircle, tab:'acc_daily', color:'var(--danger)', dir:'صادر' },
-          { label:'تحويل بين الحسابات', icon: ArrowLeftRight, tab:'acc_daily', color:'var(--primary)' },
-          { label:'حساب جديد', icon: PlusCircle, tab:'acc_accounts', color:'var(--warning)' },
-          { label:'فئة جديدة', icon: BookOpen, tab:'acc_categories', color:'var(--primary)' },
-        ].map(btn => (
-          <button
-            key={btn.label}
-            className="btn btn-outline"
-            onClick={() => setActiveTab(btn.tab)}
-            style={{ display:'flex', alignItems:'center', gap:'0.4rem', borderColor: btn.color, color: btn.color, fontWeight:'600' }}
-          >
-            <btn.icon size={16} />
-            {btn.label}
-          </button>
-        ))}
-      </div>
+      {canWrite && (
+        <div style={{ display:'flex', gap:'0.75rem', flexWrap:'wrap' }}>
+          {[
+            { label:'إضافة وارد', icon: ArrowUpCircle, tab:'acc_daily', color:'var(--success)', dir:'وارد' },
+            { label:'إضافة صادر', icon: ArrowDownCircle, tab:'acc_daily', color:'var(--danger)', dir:'صادر' },
+            { label:'تحويل بين الحسابات', icon: ArrowLeftRight, tab:'acc_daily', color:'var(--primary)' },
+            { label:'حساب جديد', icon: PlusCircle, tab:'acc_accounts', color:'var(--warning)' },
+            { label:'فئة جديدة', icon: BookOpen, tab:'acc_categories', color:'var(--primary)' },
+          ].map(btn => (
+            <button
+              key={btn.label}
+              className="btn btn-outline"
+              onClick={() => setActiveTab(btn.tab)}
+              style={{ display:'flex', alignItems:'center', gap:'0.4rem', borderColor: btn.color, color: btn.color, fontWeight:'600' }}
+            >
+              <btn.icon size={16} />
+              {btn.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="stats-grid">

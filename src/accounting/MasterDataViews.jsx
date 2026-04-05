@@ -10,7 +10,7 @@ import { ACCOUNT_TYPES, COUNTERPARTY_TYPES, CATEGORY_TYPES } from './constants';
 
 // =================== ACCOUNTS VIEW ===================
 export function AccountsView({ showToast }) {
-  const { accounts, transactions, getAccountBalance, isAdmin, loggedInUser } = useAccounting();
+  const { accounts, transactions, getAccountBalance, isAdmin, loggedInUser, canWrite, canDelete } = useAccounting();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name_ar:'', account_type:'CASH', opening_balance:0, notes:'', is_active:true });
   const [editId, setEditId] = useState(null);
@@ -46,12 +46,12 @@ export function AccountsView({ showToast }) {
     <div className="animate-fade-in" style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
       <div className="card-header">
         <h2 className="card-title"><Wallet /> الحسابات والدفاتر</h2>
-        {isAdmin && <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name_ar:'', account_type:'CASH', opening_balance:0, notes:'', is_active:true }); }}>
+        {canWrite && <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name_ar:'', account_type:'CASH', opening_balance:0, notes:'', is_active:true }); }}>
           <PlusCircle size={16}/> حساب جديد
         </button>}
       </div>
 
-      {showForm && isAdmin && (
+      {showForm && canWrite && (
         <div className="card animate-fade-in" style={{ border:'2px solid var(--primary)' }}>
           <h3 className="card-title" style={{ marginBottom:'1.25rem' }}>{editId ? 'تعديل حساب' : 'إضافة حساب جديد'}</h3>
           <form onSubmit={handleSubmit}>
@@ -123,10 +123,10 @@ export function AccountsView({ showToast }) {
                   <div style={{ fontWeight:'700', fontSize:'1rem', marginBottom:'0.25rem' }}>{acc.name_ar}</div>
                   <div style={{ fontSize:'0.8rem', color:'var(--text-secondary)' }}>{ACCOUNT_TYPES[acc.account_type] || acc.account_type}</div>
                 </div>
-                {isAdmin && (
+                {(canWrite || canDelete) && (
                   <div style={{ display:'flex', gap:'0.3rem' }} onClick={e => e.stopPropagation()}>
-                    <button className="btn btn-secondary" style={{ padding:'0.25rem 0.5rem' }} onClick={() => handleEdit(acc)}><Edit size={13}/></button>
-                    <button className="btn btn-danger" style={{ padding:'0.25rem 0.5rem' }} onClick={() => handleDelete(acc.id)}><Trash2 size={13}/></button>
+                    {canWrite && <button className="btn btn-secondary" style={{ padding:'0.25rem 0.5rem' }} onClick={() => handleEdit(acc)}><Edit size={13}/></button>}
+                    {canDelete && <button className="btn btn-danger" style={{ padding:'0.25rem 0.5rem' }} onClick={() => handleDelete(acc.id)}><Trash2 size={13}/></button>}
                   </div>
                 )}
               </div>
@@ -145,7 +145,7 @@ export function AccountsView({ showToast }) {
 
 // =================== CATEGORIES VIEW ===================
 export function CategoriesView({ showToast }) {
-  const { categories, isAdmin, loggedInUser } = useAccounting();
+  const { categories, isAdmin, loggedInUser, canWrite, canDelete } = useAccounting();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name_ar:'', category_type:'INCOME', default_direction:'وارد', is_active:true, color:'#10b981' });
   const [editId, setEditId] = useState(null);
@@ -177,12 +177,14 @@ export function CategoriesView({ showToast }) {
     <div className="animate-fade-in" style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
       <div className="card-header">
         <h2 className="card-title"><Tag /> الفئات والتصنيفات</h2>
-        <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name_ar:'', category_type:tab, default_direction: tab === 'INCOME' ? 'وارد' : 'صادر', is_active:true, color:'#10b981' }); }}>
-          <PlusCircle size={16}/> فئة جديدة
-        </button>
+        {canWrite && (
+          <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name_ar:'', category_type:tab, default_direction: tab === 'INCOME' ? 'وارد' : 'صادر', is_active:true, color:'#10b981' }); }}>
+            <PlusCircle size={16}/> فئة جديدة
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && canWrite && (
         <div className="card animate-fade-in" style={{ border:'2px solid var(--primary)' }}>
           <form onSubmit={handleSubmit}>
             <div className="stats-grid">
@@ -220,7 +222,7 @@ export function CategoriesView({ showToast }) {
       <div className="card">
         <div className="table-container">
           <table>
-            <thead><tr><th>اسم الفئة</th><th>النوع</th><th>الاتجاه</th><th>الحالة</th>{isAdmin && <th>إجراءات</th>}</tr></thead>
+            <thead><tr><th>اسم الفئة</th><th>النوع</th><th>الاتجاه</th><th>الحالة</th>{(canWrite || canDelete) && <th>إجراءات</th>}</tr></thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr><td colSpan={5} style={{ textAlign:'center', color:'var(--text-secondary)', padding:'2rem' }}>لا توجد فئات من هذا النوع</td></tr>
@@ -233,10 +235,10 @@ export function CategoriesView({ showToast }) {
                   <td>{CATEGORY_TYPES[cat.category_type] || cat.category_type}</td>
                   <td><span className={`badge ${cat.default_direction === 'وارد' ? 'badge-success' : 'badge-danger'}`}>{cat.default_direction}</span></td>
                   <td><span className={`badge ${cat.is_active !== false ? 'badge-success' : ''}`}>{cat.is_active !== false ? 'نشطة' : 'مؤرشفة'}</span></td>
-                  {isAdmin && (
+                  {(canWrite || canDelete) && (
                     <td style={{ display:'flex', gap:'0.3rem' }}>
-                      <button className="btn btn-secondary" style={{ padding:'0.25rem 0.5rem' }} onClick={() => { setEditId(cat.id); setForm({...cat}); setShowForm(true); }}><Edit size={13}/></button>
-                      <button className="btn btn-outline" style={{ padding:'0.25rem 0.5rem' }} onClick={() => handleArchive(cat.id)} title="أرشفة"><Archive size={13}/></button>
+                      {canWrite && <button className="btn btn-secondary" style={{ padding:'0.25rem 0.5rem' }} onClick={() => { setEditId(cat.id); setForm({...cat}); setShowForm(true); }}><Edit size={13}/></button>}
+                      {canDelete && <button className="btn btn-outline" style={{ padding:'0.25rem 0.5rem' }} onClick={() => handleArchive(cat.id)} title="أرشفة"><Archive size={13}/></button>}
                     </td>
                   )}
                 </tr>
@@ -251,7 +253,7 @@ export function CategoriesView({ showToast }) {
 
 // =================== COUNTERPARTIES VIEW ===================
 export function CounterpartiesView({ showToast }) {
-  const { counterparties, isAdmin, loggedInUser } = useAccounting();
+  const { counterparties, isAdmin, loggedInUser, canWrite } = useAccounting();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name_ar:'', type:'PERSON', phone:'', notes:'' });
   const set = (k,v) => setForm(f => ({...f,[k]:v}));
@@ -269,10 +271,10 @@ export function CounterpartiesView({ showToast }) {
     <div className="animate-fade-in" style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
       <div className="card-header">
         <h2 className="card-title"><Users /> الأطراف والمستفيدون</h2>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}><PlusCircle size={16}/> إضافة طرف</button>
+        {canWrite && <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}><PlusCircle size={16}/> إضافة طرف</button>}
       </div>
 
-      {showForm && (
+      {showForm && canWrite && (
         <div className="card animate-fade-in" style={{ border:'2px solid var(--primary)' }}>
           <form onSubmit={handleSubmit}>
             <div className="stats-grid">

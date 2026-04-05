@@ -132,6 +132,9 @@ export function AccountingProvider({ children, loggedInUser }) {
       getAccountBalance, calculateRunningBalance, getMonthSummary,
       // Convenience checks
       isAdmin: loggedInUser?.role === 'admin',
+      canWrite: loggedInUser?.role === 'admin' || loggedInUser?.acc_permissions?.includes('write'),
+      canDelete: loggedInUser?.role === 'admin' || loggedInUser?.acc_permissions?.includes('delete'),
+      canRead: loggedInUser?.role === 'admin' || loggedInUser?.acc_permissions?.includes('read'),
     }}>
       {children}
     </AccountingContext.Provider>

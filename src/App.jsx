@@ -1209,6 +1209,7 @@ export default function App() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [selectedPermissions, setSelectedPermissions] = useState(navItems.map(i => i.id));
+    const [accPerms, setAccPerms] = useState(['read', 'write', 'delete']);
     const [editId, setEditId] = useState(null);
 
     const handleAdd = async (e) => {
@@ -1220,6 +1221,7 @@ export default function App() {
         username: username.trim(),
         password: password.trim(),
         permissions: selectedPermissions,
+        acc_permissions: accPerms,
         role: existingUser ? existingUser.role : 'user'
       };
 
@@ -1234,6 +1236,7 @@ export default function App() {
         await addDoc(collection(db, 'app_users'), data);
       }
       setUsername(''); setPassword(''); setSelectedPermissions(navItems.map(i => i.id));
+      setAccPerms(['read', 'write', 'delete']);
     };
 
     const handleEdit = (u) => {
@@ -1241,6 +1244,7 @@ export default function App() {
       setUsername(u.username);
       setPassword(u.password);
       setSelectedPermissions(u.permissions || []);
+      setAccPerms(u.acc_permissions || ['read']);
     };
 
     const handleDelete = async (id, role, uname) => {
@@ -1280,7 +1284,30 @@ export default function App() {
                 ))}
               </div>
             </div>
-            <button type="submit" className="btn btn-primary" style={{marginTop: '1rem'}}>{editId ? 'حفظ' : 'إضافة مستخدم'}</button>
+            <div className="form-group" style={{marginTop:'1.5rem'}}>
+              <label>صلاحيات العمليات المحاسبية (دفتر اليومية)</label>
+              <div style={{display: 'flex', gap: '1.5rem', marginTop: '0.5rem'}}>
+                {[
+                  { id: 'read',   label: 'قراءة/عرض', color: 'var(--primary)' },
+                  { id: 'write',  label: 'إضافة وتعديل', color: 'var(--success)' },
+                  { id: 'delete', label: 'حذف', color: 'var(--danger)' },
+                ].map(p => (
+                  <label key={p.id} style={{display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', color: accPerms.includes(p.id) ? p.color : 'inherit', fontWeight: accPerms.includes(p.id) ? 'bold' : 'normal'}}>
+                    <input 
+                      type="checkbox" 
+                      checked={accPerms.includes(p.id)} 
+                      onChange={() => {
+                        if (accPerms.includes(p.id)) setAccPerms(accPerms.filter(x => x !== p.id));
+                        else setAccPerms([...accPerms, p.id]);
+                      }} 
+                    />
+                    {p.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{marginTop: '1.5rem', width: '100%', padding: '0.8rem'}}>{editId ? 'حفظ التغييرات' : 'إضافة مستخدم جديد'}</button>
           </form>
         </div>
 
@@ -1343,7 +1370,7 @@ export default function App() {
     })();
     if (accView) {
       return (
-        <AccountingProvider loggedInUser={loggedInUser}>
+        <AccountingProvider key={loggedInUser?.id} loggedInUser={loggedInUser}>
           {accView}
         </AccountingProvider>
       );
