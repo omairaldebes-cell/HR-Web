@@ -6,13 +6,13 @@ import {
   createCounterparty, updateCounterparty, deleteCounterparty, COLL
 } from './accountingService';
 import { PlusCircle, Wallet, Edit, Trash2, Archive, Users, BadgeDollarSign, Tag } from 'lucide-react';
-import { ACCOUNT_TYPES, COUNTERPARTY_TYPES, CATEGORY_TYPES } from './constants';
+import { ACCOUNT_TYPES, COUNTERPARTY_TYPES, CATEGORY_TYPES, CURRENCIES, DEFAULT_CURRENCY } from './constants';
 
 // =================== ACCOUNTS VIEW ===================
 export function AccountsView({ showToast }) {
   const { accounts, transactions, getAccountBalance, isAdmin, loggedInUser, canWrite, canDelete } = useAccounting();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name_ar:'', account_type:'CASH', opening_balance:0, notes:'', is_active:true });
+  const [form, setForm] = useState({ name_ar:'', account_type:'CASH', opening_balance:0, currency: DEFAULT_CURRENCY, notes:'', is_active:true });
   const [editId, setEditId] = useState(null);
   const [viewId, setViewId] = useState(null);
   const set = (k,v) => setForm(f => ({...f,[k]:v}));
@@ -27,7 +27,7 @@ export function AccountsView({ showToast }) {
       await createAccount(form, loggedInUser?.username);
       showToast('تم إضافة الحساب', 'success');
     }
-    setForm({ name_ar:'', account_type:'CASH', opening_balance:0, notes:'', is_active:true });
+    setForm({ name_ar:'', account_type:'CASH', opening_balance:0, currency: DEFAULT_CURRENCY, notes:'', is_active:true });
     setEditId(null); setShowForm(false);
   };
 
@@ -46,7 +46,7 @@ export function AccountsView({ showToast }) {
     <div className="animate-fade-in" style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
       <div className="card-header">
         <h2 className="card-title"><Wallet /> الحسابات والدفاتر</h2>
-        {canWrite && <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name_ar:'', account_type:'CASH', opening_balance:0, notes:'', is_active:true }); }}>
+        {canWrite && <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({ name_ar:'', account_type:'CASH', opening_balance:0, currency: DEFAULT_CURRENCY, notes:'', is_active:true }); }}>
           <PlusCircle size={16}/> حساب جديد
         </button>}
       </div>
@@ -63,9 +63,17 @@ export function AccountsView({ showToast }) {
                   {Object.entries(ACCOUNT_TYPES).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
-              <div className="form-group"><label>الرصيد الافتتاحي</label><input type="number" step="any" value={form.opening_balance} onChange={e=>set('opening_balance',parseFloat(e.target.value)||0)} /></div>
-              <div className="form-group"><label>ملاحظات</label><input type="text" value={form.notes} onChange={e=>set('notes',e.target.value)} /></div>
-            </div>
+               <div className="form-group">
+                 <label>الرصيد الافتتاحي</label>
+                 <div style={{ display:'flex', gap:'0.25rem' }}>
+                   <input type="number" step="any" value={form.opening_balance} onChange={e=>set('opening_balance',parseFloat(e.target.value)||0)} style={{ flex:1 }} />
+                   <select value={form.currency} onChange={e=>set('currency',e.target.value)} style={{ width:'80px' }}>
+                     {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                   </select>
+                 </div>
+               </div>
+               <div className="form-group"><label>ملاحظات</label><input type="text" value={form.notes} onChange={e=>set('notes',e.target.value)} /></div>
+             </div>
             <div style={{ display:'flex', gap:'0.75rem', marginTop:'1rem' }}>
               <button type="submit" className="btn btn-primary" style={{ flex:1 }}>{editId ? 'حفظ' : 'إضافة'}</button>
               <button type="button" className="btn btn-outline" onClick={() => { setShowForm(false); setEditId(null); }}>إلغاء</button>
@@ -83,8 +91,14 @@ export function AccountsView({ showToast }) {
           </div>
           <div className="stats-grid" style={{ marginBottom:'1rem' }}>
             <div className="stat-card">
-              <div className="stat-label">الرصيد الحالي</div>
-              <div className="stat-value" style={{ color:'var(--primary)', fontSize:'1.4rem' }}>{getAccountBalance(viewedAccount.id).toLocaleString('en-US')}</div>
+              <div className="stat-label">أرصدة الحساب</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'0.25rem' }}>
+                {Object.entries(getAccountBalance(viewedAccount.id)).map(([cur, bal]) => (
+                  <div key={cur} style={{ fontWeight:'700', color: bal >= 0 ? 'var(--primary)' : 'var(--danger)', fontSize:'1.1rem' }}>
+                    {bal.toLocaleString('en-US')} {cur}
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="stat-card">
               <div className="stat-label">عدد الحركات</div>
@@ -101,8 +115,12 @@ export function AccountsView({ showToast }) {
                   <tr key={tx.id}>
                     <td>{tx.transaction_date}</td>
                     <td>{tx.description}</td>
-                    <td style={{ color:'var(--success)', fontWeight: tx.direction === 'وارد' ? '700':'400' }}>{tx.direction === 'وارد' ? tx.amount.toLocaleString('en-US') : ''}</td>
-                    <td style={{ color:'var(--danger)', fontWeight: tx.direction === 'صادر' ? '700':'400' }}>{tx.direction === 'صادر' ? tx.amount.toLocaleString('en-US') : ''}</td>
+                    <td style={{ color:'var(--success)', fontWeight: tx.direction === 'وارد' ? '700':'400' }}>
+                      {tx.direction === 'وارد' ? `${tx.amount.toLocaleString('en-US')} ${tx.currency || DEFAULT_CURRENCY}` : ''}
+                    </td>
+                    <td style={{ color:'var(--danger)', fontWeight: tx.direction === 'صادر' ? '700':'400' }}>
+                      {tx.direction === 'صادر' ? `${tx.amount.toLocaleString('en-US')} ${tx.currency || DEFAULT_CURRENCY}` : ''}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -130,11 +148,21 @@ export function AccountsView({ showToast }) {
                   </div>
                 )}
               </div>
-              <div style={{ marginTop:'1rem', padding:'0.5rem', background:'var(--bg-color)', borderRadius:'var(--radius-sm)', textAlign:'center' }}>
-                <div style={{ fontSize:'1.4rem', fontWeight:'800', color: balance >= 0 ? 'var(--success)' : 'var(--danger)' }}>{balance.toLocaleString('en-US')}</div>
-                <div style={{ fontSize:'0.8rem', color:'var(--text-secondary)' }}>الرصيد الحالي</div>
+              <div style={{ marginTop:'1rem', padding:'0.5rem', background:'var(--bg-color)', borderRadius:'var(--radius-sm)' }}>
+                <div style={{ fontSize:'0.75rem', color:'var(--text-secondary)', marginBottom:'0.3rem', textAlign:'center' }}>الأرصدة الحالية</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'0.2rem' }}>
+                  {Object.entries(getAccountBalance(acc.id)).map(([cur, bal]) => (
+                    <div key={cur} style={{ display:'flex', justifyContent:'space-between', fontSize:'1rem', fontWeight:'800', color: bal >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                      <span>{bal.toLocaleString('en-US')}</span>
+                      <span style={{ fontSize:'0.7rem', opacity:0.8 }}>{cur}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              {acc.is_main && <div style={{ marginTop:'0.5rem' }}><span className="badge badge-success">رئيسي</span></div>}
+              <div style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', alignItems:'center' }}>
+                {acc.is_main && <span className="badge badge-success">رئيسي</span>}
+                <span className="badge" style={{ background:'var(--bg-secondary)', color:'var(--text-secondary)' }}>{acc.currency || DEFAULT_CURRENCY}</span>
+              </div>
             </div>
           );
         })}

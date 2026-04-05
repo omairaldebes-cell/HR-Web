@@ -5,7 +5,7 @@ import {
   BookOpen, PlusCircle, Trash2, Edit, Search, Download, Printer,
   TrendingUp, TrendingDown, Wallet, Filter, X, ChevronDown
 } from 'lucide-react';
-import { TRANSACTION_TYPES, DIRECTION } from './constants';
+import { TRANSACTION_TYPES, DIRECTION, CURRENCIES, DEFAULT_CURRENCY } from './constants';
 import * as XLSX from 'xlsx';
 
 const EMPTY_FORM = {
@@ -16,6 +16,7 @@ const EMPTY_FORM = {
   category_id: '',
   counterparty_id: '',
   amount: '',
+  currency: DEFAULT_CURRENCY,
   description: '',
   reference_no: '',
   payment_method: 'نقدي',
@@ -101,6 +102,11 @@ export default function DailyJournal({ showToast }) {
     }
   };
 
+  const summaryData = useMemo(() => getMonthSummary(filterMonth), [filterMonth, getMonthSummary]);
+  const summary = useMemo(() => 
+    summaryData[DEFAULT_CURRENCY] || Object.values(summaryData)[0] || { totalIn:0, totalOut:0, net:0 }
+  , [summaryData]);
+
   const handleDelete = async (tx) => {
     if (!window.confirm(`هل تريد حذف القيد "${tx.transaction_no}"؟`)) return;
     await deleteTransaction(tx.id, loggedInUser?.username);
@@ -138,12 +144,21 @@ export default function DailyJournal({ showToast }) {
     // Calculate accurate starting balance if an account is selected
     if (filterAccount) {
       const acc = accounts.find(a => a.id === filterAccount);
+      const accBalances = getAccountBalance(filterAccount);
+      const accCurrency = acc?.currency || DEFAULT_CURRENCY;
+      startingBalance = accBalances[accCurrency] || 0;
+      
+      // Since startingBalance from getAccountBalance is the *current* balance, 
+      // we need to subtract all transactions *after* the filter month to get the month-start balance.
+      // Or we can just calculate from opening_balance + past transactions like before, but filtered by currency.
       startingBalance = acc ? (Number(acc.opening_balance) || 0) : 0;
       
-      // Include history before the selected month
       if (filterMonth) {
          const pastTxs = transactions.filter(t => t.status === 'مرحّل' && t.transaction_date < filterMonth);
          pastTxs.forEach(tx => {
+            const txCur = tx.currency || DEFAULT_CURRENCY;
+            if (txCur !== accCurrency) return; // Only affect balance if currency matches
+
             if (tx.direction !== 'تحويل' && tx.main_account_id === filterAccount) {
               startingBalance += tx.direction === 'وارد' ? (tx.amount || 0) : -(tx.amount || 0);
             } else if (tx.direction === 'تحويل') {
@@ -158,7 +173,6 @@ export default function DailyJournal({ showToast }) {
   }, [filteredRaw, calculateRunningBalance, filterAccount, filterMonth, accounts, transactions]);
   const displayRows = [...filteredWithBalance].reverse();
 
-  const summary = useMemo(() => getMonthSummary(filterMonth), [filterMonth, getMonthSummary]);
 
   const exportToExcel = () => {
     const rows = displayRows.map(tx => ({
@@ -169,6 +183,7 @@ export default function DailyJournal({ showToast }) {
       'الفئة': categories.find(c => c.id === tx.category_id)?.name_ar || '',
       'وارد': tx.direction === 'وارد' ? tx.amount : 0,
       'صادر': tx.direction === 'صادر' ? tx.amount : 0,
+      'العملة': tx.currency || DEFAULT_CURRENCY,
       'الرصيد': tx.running_balance,
       'ملاحظات': tx.notes || '',
     }));
@@ -305,8 +320,13 @@ export default function DailyJournal({ showToast }) {
                 <input type="date" value={form.transaction_date} onChange={e => set('transaction_date', e.target.value)} required />
               </div>
               <div className="form-group">
-                <label>المبلغ (ل.س) *</label>
-                <input type="number" step="any" min="0.01" placeholder="0" value={form.amount} onChange={e => set('amount', e.target.value)} required />
+                <label>المبلغ *</label>
+                <div style={{ display:'flex', gap:'0.25rem' }}>
+                  <input type="number" step="any" min="0.01" placeholder="0" value={form.amount} onChange={e => set('amount', e.target.value)} required style={{ flex:1 }} />
+                  <select value={form.currency} onChange={e => set('currency', e.target.value)} style={{ width:'80px' }}>
+                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
               </div>
               {form.direction !== 'تحويل' ? (
                 <div className="form-group">
@@ -437,10 +457,10 @@ export default function DailyJournal({ showToast }) {
                   <td>{categories.find(c => c.id === tx.category_id)?.name_ar || '-'}</td>
                   <td>{counterparties.find(cp => cp.id === tx.counterparty_id)?.name_ar || '-'}</td>
                   <td style={{ color:'var(--success)', fontWeight: tx.direction === 'وارد' ? '700' : '400' }}>
-                    {tx.direction === 'وارد' ? tx.amount.toLocaleString('en-US') : ''}
+                    {tx.direction === 'وارد' ? `${tx.amount.toLocaleString('en-US')} ${tx.currency || DEFAULT_CURRENCY}` : ''}
                   </td>
                   <td style={{ color:'var(--danger)', fontWeight: tx.direction === 'صادر' ? '700' : '400' }}>
-                    {tx.direction === 'صادر' ? tx.amount.toLocaleString('en-US') : ''}
+                    {tx.direction === 'صادر' ? `${tx.amount.toLocaleString('en-US')} ${tx.currency || DEFAULT_CURRENCY}` : ''}
                   </td>
                   <td style={{ fontWeight:'800', color: tx.running_balance >= 0 ? 'var(--primary)' : 'var(--danger)', background:'rgba(59,130,246,0.05)' }}>
                     {tx.running_balance?.toLocaleString('en-US')}

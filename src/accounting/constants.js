@@ -2,6 +2,9 @@
 // دفتر اليومية الذكي — Constants & Enums
 // ==========================================
 
+export const CURRENCIES = ['ل.س', 'USD', 'EUR', 'TRY', 'SAR'];
+export const DEFAULT_CURRENCY = 'ل.س';
+
 export const TRANSACTION_TYPES = {
   RECEIPT: 'قبض',
   PAYMENT: 'صرف',

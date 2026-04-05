@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { listen, seedIfEmpty, COLL } from '../accountingService';
 import {
   SEED_INCOME_CATEGORIES, SEED_EXPENSE_CATEGORIES, SEED_ACCOUNTS,
-  CATEGORY_TYPES, ACCOUNT_TYPES
+  CATEGORY_TYPES, ACCOUNT_TYPES, DEFAULT_CURRENCY
 } from '../constants';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -51,6 +51,7 @@ export function AccountingProvider({ children, loggedInUser }) {
         is_active: true,
         is_main: a.is_main || false,
         opening_balance: 0,
+        currency: DEFAULT_CURRENCY,
         normal_balance_direction: a.type === 'EXPENSE_BUCKET' ? 'صادر' : 'وارد',
         notes: '',
       }));
@@ -94,21 +95,28 @@ export function AccountingProvider({ children, loggedInUser }) {
     return () => unsubs.forEach(u => u());
   }, []);
 
-  // Derived computed balance per account
+  // Derived computed balance per account, grouped by currency
   const getAccountBalance = useCallback((accountId) => {
     const acc = accounts.find(a => a.id === accountId);
-    let balance = acc ? (Number(acc.opening_balance) || 0) : 0;
+    if (!acc) return {};
+
+    const balances = {
+      [acc.currency || DEFAULT_CURRENCY]: Number(acc.opening_balance) || 0
+    };
 
     transactions.filter(tx => tx.status === 'مرحّل').forEach(tx => {
+      const cur = tx.currency || DEFAULT_CURRENCY;
+      if (!balances[cur]) balances[cur] = 0;
+
       if (tx.direction !== 'تحويل' && tx.main_account_id === accountId) {
-        balance += tx.direction === 'وارد' ? (tx.amount || 0) : -(tx.amount || 0);
+        balances[cur] += tx.direction === 'وارد' ? (tx.amount || 0) : -(tx.amount || 0);
       } else if (tx.direction === 'تحويل') {
-        if (tx.source_account_id === accountId) balance -= (tx.amount || 0);
-        if (tx.destination_account_id === accountId) balance += (tx.amount || 0);
+        if (tx.source_account_id === accountId) balances[cur] -= (tx.amount || 0);
+        if (tx.destination_account_id === accountId) balances[cur] += (tx.amount || 0);
       }
     });
 
-    return balance;
+    return balances;
   }, [transactions, accounts]);
 
   // Running balance for a sorted list of transactions
@@ -133,14 +141,34 @@ export function AccountingProvider({ children, loggedInUser }) {
     });
   }, []);
 
-  // Month totals
+  // Month totals per currency
   const getMonthSummary = useCallback((yearMonth) => {
     const monthTxs = transactions.filter(tx =>
       tx.transaction_date && tx.transaction_date.startsWith(yearMonth) && tx.status === 'مرحّل'
     );
-    const totalIn  = monthTxs.filter(t => t.direction === 'وارد').reduce((s, t) => s + (t.amount || 0), 0);
-    const totalOut = monthTxs.filter(t => t.direction === 'صادر').reduce((s, t) => s + (t.amount || 0), 0);
-    return { totalIn, totalOut, net: totalIn - totalOut, count: monthTxs.length };
+    
+    const summaries = {};
+    monthTxs.forEach(tx => {
+      const cur = tx.currency || DEFAULT_CURRENCY;
+      if (!summaries[cur]) summaries[cur] = { totalIn:0, totalOut:0, net:0, count:0 };
+      
+      const amount = tx.amount || 0;
+      if (tx.direction === 'وارد') summaries[cur].totalIn += amount;
+      if (tx.direction === 'صادر') summaries[cur].totalOut += amount;
+      summaries[cur].count++;
+    });
+
+    // Handle case where no txs for the month
+    if (Object.keys(summaries).length === 0) {
+      summaries[DEFAULT_CURRENCY] = { totalIn:0, totalOut:0, net:0, count:0 };
+    }
+
+    // Calculate nets
+    Object.keys(summaries).forEach(cur => {
+      summaries[cur].net = summaries[cur].totalIn - summaries[cur].totalOut;
+    });
+
+    return summaries;
   }, [transactions]);
 
   return (
