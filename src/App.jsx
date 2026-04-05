@@ -81,7 +81,7 @@ const ACC_NAV = [
   { id: 'acc_daily',      label: 'دفتر اليومية',         icon: BookOpen,        group: 'acc' },
   { id: 'acc_accounts',   label: 'الحسابات والدفاتر',    icon: Wallet,          group: 'acc' },
   { id: 'acc_categories', label: 'الفئات',               icon: Tag,             group: 'acc' },
-  { id: 'acc_parties',    label: 'الأطراف',              icon: Users,           group: 'acc' },
+  { id: 'acc_parties',    label: 'المتبرعون',              icon: Users,           group: 'acc' },
   { id: 'acc_report',     label: 'التقارير الشهرية',    icon: BarChart2,       group: 'acc' },
   { id: 'acc_import',     label: 'استيراد Excel',        icon: Upload,          group: 'acc' },
   { id: 'acc_fields',     label: 'الحقول المخصصة',      icon: FileSpreadsheet, group: 'acc' },

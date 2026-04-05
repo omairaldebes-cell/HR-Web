@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAccounting } from './context/AccountingContext';
 import { createTransaction, deleteTransaction, updateTransaction } from './accountingService';
 import {
@@ -29,9 +29,29 @@ export default function DailyJournal({ showToast }) {
   const { transactions, accounts, categories, counterparties, customFields, getMonthSummary,
           calculateRunningBalance, isAdmin, loggedInUser, canWrite, canDelete } = useAccounting();
 
+  // Find the main cash account to use as default
+  const mainCashAccount = useMemo(() =>
+    accounts.find(a => a.is_main === true) ||
+    accounts.find(a => a.account_type === 'CASH') ||
+    null
+  , [accounts]);
+
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState(null);
+
+  // Auto-set main account defaults once accounts are loaded
+  useEffect(() => {
+    if (mainCashAccount && !editId) {
+      setForm(f => f.main_account_id ? f : { ...f, main_account_id: mainCashAccount.id });
+    }
+  }, [mainCashAccount, editId]);
+
+  const openNewForm = () => {
+    setEditId(null);
+    setShowForm(true);
+    setForm({ ...EMPTY_FORM, main_account_id: mainCashAccount?.id || '' });
+  };
 
   // Filters
   const today = new Date().toISOString().split('T')[0];
@@ -172,7 +192,7 @@ export default function DailyJournal({ showToast }) {
             <Printer size={15}/> طباعة
           </button>
           {canWrite && (
-            <button className="btn btn-primary" onClick={() => { setShowForm(!showForm); setEditId(null); setForm({...EMPTY_FORM}); }}
+            <button className="btn btn-primary" onClick={openNewForm}
               style={{ display:'flex', alignItems:'center', gap:'0.3rem' }}>
               <PlusCircle size={16}/> إضافة قيد جديد
             </button>
@@ -317,7 +337,7 @@ export default function DailyJournal({ showToast }) {
                 </select>
               </div>
               <div className="form-group">
-                <label>الطرف المقابل</label>
+                <label>المتبرع</label>
                 <select value={form.counterparty_id} onChange={e => set('counterparty_id', e.target.value)}>
                   <option value="">--</option>
                   {counterparties.map(cp => <option key={cp.id} value={cp.id}>{cp.name_ar}</option>)}
@@ -383,7 +403,7 @@ export default function DailyJournal({ showToast }) {
                 <th style={{ minWidth:'200px' }}>البيان</th>
                 <th>الحساب</th>
                 <th>الفئة</th>
-                <th>الطرف</th>
+                <th>المتبرع</th>
                 <th style={{ color:'var(--success)' }}>وارد</th>
                 <th style={{ color:'var(--danger)' }}>صادر</th>
                 <th style={{ background:'var(--primary)', color:'white' }}>الرصيد</th>

@@ -270,8 +270,8 @@ export function CounterpartiesView({ showToast }) {
   return (
     <div className="animate-fade-in" style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
       <div className="card-header">
-        <h2 className="card-title"><Users /> الأطراف والمستفيدون</h2>
-        {canWrite && <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}><PlusCircle size={16}/> إضافة طرف</button>}
+        <h2 className="card-title"><Users /> المتبرعون</h2>
+        {canWrite && <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}><PlusCircle size={16}/> إضافة متبرع</button>}
       </div>
 
       {showForm && canWrite && (
