@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { calculatePenaltyHours, parseExcel } from './utils';
-import { db } from './firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
+import { db, auth, secondaryAuth } from './firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, getDocs } from 'firebase/firestore';
 import { AccountingProvider } from './accounting/context/AccountingContext';
 import AccountingDashboard from './accounting/AccountingDashboard';
 import DailyJournal from './accounting/DailyJournal';
@@ -111,6 +112,7 @@ export default function App() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
 
   // App State (from Firebase)
+  const [firebaseUser, setFirebaseUser] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [advances, setAdvances] = useState([]);
@@ -124,8 +126,18 @@ export default function App() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  // Fetch from Firebase
+  // Auth Listener
   useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+    });
+    return () => unsubAuth();
+  }, []);
+
+  // Fetch from Firebase (only when authenticated)
+  useEffect(() => {
+    if (!firebaseUser) return;
+
     const unsubEmp = onSnapshot(collection(db, 'employees'), (snapshot) => {
       setEmployees(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -143,7 +155,7 @@ export default function App() {
       if (usersList.length === 0) {
         addDoc(collection(db, 'app_users'), {
           username: 'faez',
-          password: 'faez@123',
+          password: 'faez@123', // Still stored for app reference, though auth is managed by Firebase
           role: 'admin',
           permissions: navItems.map(item => item.id) // all permissions
         });
@@ -165,7 +177,7 @@ export default function App() {
     return () => {
       unsubEmp(); unsubAtt(); unsubAdv(); unsubSet(); unsubUsers();
     };
-  }, []);
+  }, [firebaseUser]);
 
   // Apply theme mode
   useEffect(() => {
@@ -181,28 +193,48 @@ export default function App() {
     }
   }, [loggedInUser]);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (appUsers.length === 0) {
-      alert('جاري تحميل بيانات النظام، يرجى المحاولة خلال ثوانٍ...');
-      return;
-    }
-    const user = appUsers.find(u => u.username === loginForm.username && u.password === loginForm.password);
-    if (user) {
-      setLoggedInUser(user);
+    try {
+      // 1. Authenicate via Firebase Auth
+      await signInWithEmailAndPassword(auth, `${loginForm.username}@hr.internal`, loginForm.password);
       
-      // Redirect to the first available tab for this user if they don't have dashboard
-      if (user.permissions && !user.permissions.includes('dashboard')) {
-        setActiveTab(user.permissions[0]);
+      // 2. Fetch permissions from app_users securely (requires valid auth)
+      const q = query(collection(db, 'app_users'), where('username', '==', loginForm.username));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        const userDoc = snap.docs[0];
+        const user = { id: userDoc.id, ...userDoc.data() };
+        setLoggedInUser(user);
+        
+        // Redirect
+        if (user.permissions && !user.permissions.includes('dashboard')) {
+          setActiveTab(user.permissions[0]);
+        } else {
+          setActiveTab('dashboard');
+        }
       } else {
-        setActiveTab('dashboard');
+         alert('تم تسجيل الدخول لكن لا توجد صلاحيات (حساب غير مسجل في قاعدة البيانات)');
+         firebaseSignOut(auth);
       }
-    } else {
-      alert('خطأ في اسم المستخدم أو كلمة المرور');
+    } catch (err) {
+      if (err.code === 'auth/user-not-found' && loginForm.username === 'faez') {
+         // Auto-provision initial Admin Account
+         try {
+           await createUserWithEmailAndPassword(auth, 'faez@hr.internal', loginForm.password);
+           alert('تم إنشاء وتهيئة حساب المدير في الخلفية! الرجاء تسجيل الدخول الآن.');
+         } catch (createErr) {
+           alert('خطأ في تهيئة النظام: ' + createErr.message);
+         }
+      } else {
+         alert('خطأ في اسم المستخدم أو كلمة المرور');
+      }
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await firebaseSignOut(auth);
     setLoggedInUser(null);
     setLoginForm({ username: '', password: '' });
   };
@@ -1225,18 +1257,25 @@ export default function App() {
         role: existingUser ? existingUser.role : 'user'
       };
 
-      if (editId) {
-        await updateDoc(doc(db, 'app_users', editId), data);
-        // If editing self, update active session state
-        if (loggedInUser.id === editId) {
-          setLoggedInUser({ ...loggedInUser, ...data });
+      try {
+        if (!editId) {
+          // Provision in backend without signing current user out
+          await createUserWithEmailAndPassword(secondaryAuth, `${username.trim()}@hr.internal`, password.trim());
+          // Save permissions document
+          await addDoc(collection(db, 'app_users'), data);
+        } else {
+          await updateDoc(doc(db, 'app_users', editId), data);
+          // If editing self, update active session state
+          if (loggedInUser.id === editId) {
+            setLoggedInUser({ ...loggedInUser, ...data });
+          }
         }
         setEditId(null);
-      } else {
-        await addDoc(collection(db, 'app_users'), data);
+        setUsername(''); setPassword(''); setSelectedPermissions(navItems.map(i => i.id));
+        setAccPerms(['read', 'write', 'delete']);
+      } catch (err) {
+        alert('حدث خطأ أثناء الاتصال بقاعدة بيانات المصادقة: ' + err.message);
       }
-      setUsername(''); setPassword(''); setSelectedPermissions(navItems.map(i => i.id));
-      setAccPerms(['read', 'write', 'delete']);
     };
 
     const handleEdit = (u) => {

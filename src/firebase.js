@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBtB-LCH2APJrim5HTqhiVfZvwRPLnZR6g",
@@ -16,3 +17,10 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Cloud Firestore and get a reference to the service
 export const db = getFirestore(app);
+
+// Initialize Firebase Authentication
+export const auth = getAuth(app);
+
+// Secondary App for creating new users behind the scenes without changing the current session
+const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+export const secondaryAuth = getAuth(secondaryApp);
