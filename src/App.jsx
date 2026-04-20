@@ -202,11 +202,23 @@ export default function App() {
     e.preventDefault();
     try {
       // 1. Authenicate via Firebase Auth
-      // No longer appending @hr.internal - using full email as username
-      await signInWithEmailAndPassword(auth, loginForm.username, loginForm.password);
+      let authUser;
+      try {
+        authUser = await signInWithEmailAndPassword(auth, loginForm.username, loginForm.password);
+      } catch (authErr) {
+        // Smart Fallback: If user typed "name@gmail.com" but only "name@hr.internal" exists
+        if ((authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential') && loginForm.username.includes('@')) {
+           const prefix = loginForm.username.split('@')[0];
+           authUser = await signInWithEmailAndPassword(auth, `${prefix}@hr.internal`, loginForm.password);
+        } else {
+           throw authErr;
+        }
+      }
       
       // 2. Fetch permissions from app_users securely (requires valid auth)
-      const q = query(collection(db, 'app_users'), where('username', '==', loginForm.username));
+      // Check for both the typed login and the prefix (for backward compatibility)
+      const prefix = loginForm.username.includes('@') ? loginForm.username.split('@')[0] : loginForm.username;
+      const q = query(collection(db, 'app_users'), where('username', 'in', [loginForm.username, prefix]));
       const snap = await getDocs(q);
       
       if (!snap.empty) {
