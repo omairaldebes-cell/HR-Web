@@ -296,7 +296,7 @@ export default function App() {
     } catch (err) {
       console.error(err);
       if (err.code !== 'auth/popup-closed-by-user') {
-        alert('حدث خطأ أثناء تسجيل الدخول بواسطة جوجل.');
+        alert('حدث خطأ أثناء تسجيل الدخول بواسطة جوجل: ' + err.code);
       }
     }
   };
