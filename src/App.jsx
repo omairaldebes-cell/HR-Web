@@ -202,7 +202,8 @@ export default function App() {
     e.preventDefault();
     try {
       // 1. Authenicate via Firebase Auth
-      await signInWithEmailAndPassword(auth, `${loginForm.username}@hr.internal`, loginForm.password);
+      // No longer appending @hr.internal - using full email as username
+      await signInWithEmailAndPassword(auth, loginForm.username, loginForm.password);
       
       // 2. Fetch permissions from app_users securely (requires valid auth)
       const q = query(collection(db, 'app_users'), where('username', '==', loginForm.username));
@@ -220,10 +221,10 @@ export default function App() {
           setActiveTab('dashboard');
         }
       } else {
-         if (loginForm.username === 'faez') {
+         if (loginForm.username === 'faezaldebs@gmail.com') {
              // Auto-recreate admin user document if it was deleted!
              const newUserReq = {
-                 username: 'faez',
+                 username: 'faezaldebs@gmail.com',
                  role: 'admin',
                  permissions: navItems.map(item => item.id)
              };
@@ -236,13 +237,13 @@ export default function App() {
          }
       }
     } catch (err) {
-      if ((err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials') && loginForm.username === 'faez') {
+      if ((err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials') && loginForm.username === 'faezaldebs@gmail.com') {
          // Auto-provision initial Admin Account
          try {
-           await createUserWithEmailAndPassword(auth, 'faez@hr.internal', loginForm.password);
+           await createUserWithEmailAndPassword(auth, 'faezaldebs@gmail.com', loginForm.password);
            
            const newUserReq = {
-               username: 'faez',
+               username: 'faezaldebs@gmail.com',
                role: 'admin',
                permissions: navItems.map(item => item.id)
            };
