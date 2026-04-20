@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBtB-LCH2APJrim5HTqhiVfZvwRPLnZR6g",
@@ -24,3 +24,5 @@ export const auth = getAuth(app);
 // Secondary App for creating new users behind the scenes without changing the current session
 const secondaryApp = initializeApp(firebaseConfig, "Secondary");
 export const secondaryAuth = getAuth(secondaryApp);
+
+export const googleProvider = new GoogleAuthProvider();
