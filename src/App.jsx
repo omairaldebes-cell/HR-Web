@@ -644,6 +644,15 @@ export default function App() {
     const handleAdd = async (e) => {
       e.preventDefault();
       if (!empId || !date) return;
+
+      // Check for existing record
+      const alreadyExists = attendance.find(a => a.employeeId === empId && a.date === date);
+      if (alreadyExists) {
+        const empName = employees.find(e => e.id === empId)?.name || 'هذا الموظف';
+        alert(`الموظف @${empName}@ مضاف مسبقاً في تاريخ @${date}@`);
+        return;
+      }
+
       const actualCheckOut = checkOut || settings.workEnd;
       const penaltyHours = calculatePenaltyHours(checkIn, actualCheckOut, settings.workStart, settings.workEnd);
       await addDoc(collection(db, 'attendance'), { 
@@ -664,7 +673,23 @@ export default function App() {
       if (selectedEmps.length === 0) return alert('يرجى اختيار موظفين أولاً');
       if (!date) return alert('يرجى اختيار التاريخ');
       
-      const promises = selectedEmps.map(id => {
+      const alreadyAddedNames = [];
+      const validEmps = selectedEmps.filter(id => {
+        const exists = attendance.find(a => a.employeeId === id && a.date === date);
+        if (exists) {
+          const name = employees.find(e => e.id === id)?.name || id;
+          alreadyAddedNames.push(name);
+          return false;
+        }
+        return true;
+      });
+
+      if (alreadyAddedNames.length > 0) {
+        alert(`الموظفون التاليون مضافون مسبقاً لهذا التاريخ وسيتم تجاهلهم: ${alreadyAddedNames.join(', ')}`);
+        if (validEmps.length === 0) return;
+      }
+
+      const promises = validEmps.map(id => {
         if (actionType === 'present') {
           const actualCheckOut = settings.workEnd;
           const penaltyHours = calculatePenaltyHours(settings.workStart, actualCheckOut, settings.workStart, settings.workEnd);
@@ -694,7 +719,7 @@ export default function App() {
       });
 
       await Promise.all(promises);
-      showToast(`تم تنفيذ العملية لـ ${selectedEmps.length} موظف بنجاح`, 'success');
+      showToast(`تم تنفيذ العملية لـ ${validEmps.length} موظف بنجاح`, 'success');
       setSelectedEmps([]);
     };
 
@@ -1088,6 +1113,15 @@ export default function App() {
     const [empId, setEmpId] = useState(''); const [date, setDate] = useState('');
     const handleAdd = async (e) => {
       e.preventDefault(); if (!empId || !date) return;
+      
+      // Check for existing record
+      const alreadyExists = attendance.find(a => a.employeeId === empId && a.date === date);
+      if (alreadyExists) {
+        const empName = employees.find(e => e.id === empId)?.name || 'هذا الموظف';
+        alert(`الموظف @${empName}@ مضاف مسبقاً في تاريخ @${date}@`);
+        return;
+      }
+
       await addDoc(collection(db, 'attendance'), { employeeId: empId, date, checkIn: '', checkOut: '', penaltyHours: settings.hoursPerLeaveDay, extraHours: 0, type: 'leave', timestamp: Date.now() });
       alert(`تم خصم وتنزيل الإجازة بنجاح.`); setDate(''); setEmpId('');
     };
@@ -1244,15 +1278,35 @@ export default function App() {
 
     const confirmUpload = async () => {
       if(!previewRecords || previewRecords.length === 0) return;
+      
+      // Filter out records that already exist in the database
+      const alreadyAddedNames = [];
+      const filteredRecords = previewRecords.filter(rec => {
+        const exists = attendance.find(a => a.employeeId === rec.employeeId && a.date === rec.date);
+        if (exists) {
+          alreadyAddedNames.push(`${rec.empName} (${rec.date})`);
+          return false;
+        }
+        return true;
+      });
+
+      if (alreadyAddedNames.length > 0) {
+        alert(`السجلات التالية مضافة مسبقاً وسيتم تجاهلها:\n${alreadyAddedNames.join('\n')}`);
+        if (filteredRecords.length === 0) {
+          setPreviewRecords(null);
+          return;
+        }
+      }
+
       setIsUploading(true);
       try {
-        await Promise.all(previewRecords.map(rec => {
+        await Promise.all(filteredRecords.map(rec => {
           const { id, empName, actualCheckOut, ...dbData } = rec;
           dbData.checkOut = actualCheckOut;
           dbData.timestamp = Date.now();
           return addDoc(collection(db, 'attendance'), dbData);
         }));
-        alert(`تم اعتماد ${previewRecords.length} سجل بنجاح.`);
+        alert(`تم اعتماد ${filteredRecords.length} سجل بنجاح.`);
         setPreviewRecords(null);
       } catch(e) { alert('حدث خطأ في الرفع.'); }
       setIsUploading(false);
