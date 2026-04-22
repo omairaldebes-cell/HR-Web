@@ -184,9 +184,26 @@ export default function App() {
     };
   }, [firebaseUser]);
 
-  // Apply theme mode
+  // Apply theme mode and mouse tracking for apple-glass shimmer effect
   useEffect(() => {
     document.body.className = settings.themeMode || 'dark';
+
+    if (settings.themeMode === 'apple-glass') {
+      const handleMouseMove = (e) => {
+        const cards = document.querySelectorAll('.card, .stat-card, .btn, .modal-box');
+        for (const card of cards) {
+          const rect = card.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          card.style.setProperty('--mouse-x', `${x}px`);
+          card.style.setProperty('--mouse-y', `${y}px`);
+          card.classList.add('glass-shimmer');
+        }
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      return () => window.removeEventListener('mousemove', handleMouseMove);
+    }
   }, [settings.themeMode]);
 
   // Update localStorage when logged in user changes
@@ -631,182 +648,271 @@ export default function App() {
   };
 
   const AttendanceView = () => {
-    const [empId, setEmpId] = useState(''); 
     const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-    const [checkIn, setCheckIn] = useState(settings.workStart || '09:00'); 
-    const [checkOut, setCheckOut] = useState('');
-    const [extraHours, setExtraHours] = useState(0);
+    const [expandedRow, setExpandedRow] = useState(null);
     
-    // Bulk Mode State
-    const [isBulkMode, setIsBulkMode] = useState(false);
-    const [selectedEmps, setSelectedEmps] = useState([]);
+    // Local state for forms
+    const [checkInTimes, setCheckInTimes] = useState({});
+    const [checkOutTimes, setCheckOutTimes] = useState({});
 
-    const handleAdd = async (e) => {
-      e.preventDefault();
-      if (!empId || !date) return;
+    // Initialize default times when employees or date changes
+    useEffect(() => {
+      const initialCheckIn = {};
+      const initialCheckOut = {};
+      employees.forEach(emp => {
+        initialCheckIn[emp.id] = settings.workStart || '09:00';
+        initialCheckOut[emp.id] = settings.workEnd || '15:00';
+      });
+      setCheckInTimes(initialCheckIn);
+      setCheckOutTimes(initialCheckOut);
+    }, [employees, date, settings]);
 
-      // Check for existing record
-      const alreadyExists = attendance.find(a => a.employeeId === empId && a.date === date);
-      if (alreadyExists) {
-        const empName = employees.find(e => e.id === empId)?.name || 'هذا الموظف';
-        alert(`الموظف @${empName}@ مضاف مسبقاً في تاريخ @${date}@`);
-        return;
+    // Determine states
+    const employeeStates = employees.map(emp => {
+      const record = attendance.find(a => a.employeeId === emp.id && a.date === date);
+      let state = 'pending'; // 1
+      if (record) {
+        if (record.type === 'leave' || record.type === 'absent') state = 'absent'; // 4
+        else if (record.checkIn && !record.checkOut) state = 'checked-in'; // 2
+        else if (record.checkOut) state = 'completed'; // 3
       }
+      return { emp, record, state };
+    });
 
-      const actualCheckOut = checkOut || settings.workEnd;
-      const penaltyHours = calculatePenaltyHours(checkIn, actualCheckOut, settings.workStart, settings.workEnd);
+    const pendingCount = employeeStates.filter(s => s.state === 'pending' || s.state === 'checked-in').length;
+    const completedCount = employeeStates.filter(s => s.state === 'completed' || s.state === 'absent').length;
+    const totalCount = employeeStates.length;
+    const isAllCompleted = completedCount === totalCount && totalCount > 0;
+
+    const handleExpand = (empId) => {
+      setExpandedRow(expandedRow === empId ? null : empId);
+    };
+
+    const expandNextPending = (currentIndex) => {
+      for (let i = currentIndex + 1; i < employeeStates.length; i++) {
+        if (employeeStates[i].state === 'pending' || employeeStates[i].state === 'checked-in') {
+          setExpandedRow(employeeStates[i].emp.id);
+          return;
+        }
+      }
+      for (let i = 0; i < currentIndex; i++) {
+        if (employeeStates[i].state === 'pending' || employeeStates[i].state === 'checked-in') {
+          setExpandedRow(employeeStates[i].emp.id);
+          return;
+        }
+      }
+      setExpandedRow(null); 
+    };
+
+    const handleCheckIn = async (index, empId) => {
+      const time = checkInTimes[empId];
       await addDoc(collection(db, 'attendance'), { 
         employeeId: empId, 
         date, 
-        checkIn, 
-        checkOut: actualCheckOut, 
-        penaltyHours, 
-        extraHours: parseFloat(extraHours) || 0, 
+        checkIn: time, 
+        checkOut: '', 
+        penaltyHours: 0, 
+        extraHours: 0, 
         type: 'manual', 
         timestamp: Date.now() 
       });
-      showToast(`تم إضافة سجل ${employees.find(e=>e.id===empId)?.name} بنجاح`, 'success');
-      setEmpId(''); setCheckIn(settings.workStart || '09:00'); setCheckOut(''); setExtraHours(0);
+      showToast(`تم تسجيل حضور ${employees.find(e=>e.id===empId)?.name}`, 'info');
+      expandNextPending(index);
     };
 
-    const handleBulkAction = async (actionType) => {
-      if (selectedEmps.length === 0) return alert('يرجى اختيار موظفين أولاً');
-      if (!date) return alert('يرجى اختيار التاريخ');
-      
-      const alreadyAddedNames = [];
-      const validEmps = selectedEmps.filter(id => {
-        const exists = attendance.find(a => a.employeeId === id && a.date === date);
-        if (exists) {
-          const name = employees.find(e => e.id === id)?.name || id;
-          alreadyAddedNames.push(name);
-          return false;
-        }
-        return true;
+    const handleCheckOut = async (index, empId, recordId, checkInTime) => {
+      const time = checkOutTimes[empId] || settings.workEnd;
+      const penaltyHours = calculatePenaltyHours(checkInTime, time, settings.workStart, settings.workEnd);
+      await updateDoc(doc(db, 'attendance', recordId), { 
+        checkOut: time, 
+        penaltyHours,
       });
+      showToast(`تم إكمال دوام ${employees.find(e=>e.id===empId)?.name}`, 'success');
+      expandNextPending(index);
+    };
 
-      if (alreadyAddedNames.length > 0) {
-        alert(`الموظفون التاليون مضافون مسبقاً لهذا التاريخ وسيتم تجاهلهم: ${alreadyAddedNames.join(', ')}`);
-        if (validEmps.length === 0) return;
+    const handleAbsent = async (index, empId) => {
+      await addDoc(collection(db, 'attendance'), {
+        employeeId: empId,
+        date,
+        checkIn: '',
+        checkOut: '',
+        penaltyHours: settings.hoursPerLeaveDay,
+        extraHours: 0,
+        type: 'leave',
+        timestamp: Date.now()
+      });
+      showToast(`تم تسجيل غياب/إجازة`, 'warning');
+      expandNextPending(index);
+    };
+
+    const handleSubmitDay = () => {
+      if (isAllCompleted) {
+        showToast('تم اعتماد اليوم بنجاح!', 'success');
       }
-
-      const promises = validEmps.map(id => {
-        if (actionType === 'present') {
-          const actualCheckOut = settings.workEnd;
-          const penaltyHours = calculatePenaltyHours(settings.workStart, actualCheckOut, settings.workStart, settings.workEnd);
-          return addDoc(collection(db, 'attendance'), {
-            employeeId: id,
-            date,
-            checkIn: settings.workStart,
-            checkOut: actualCheckOut,
-            penaltyHours,
-            extraHours: 0,
-            type: 'manual',
-            timestamp: Date.now()
-          });
-        } else {
-          // Leave
-          return addDoc(collection(db, 'attendance'), {
-            employeeId: id,
-            date,
-            checkIn: '',
-            checkOut: '',
-            penaltyHours: settings.hoursPerLeaveDay,
-            extraHours: 0,
-            type: 'leave',
-            timestamp: Date.now()
-          });
-        }
-      });
-
-      await Promise.all(promises);
-      showToast(`تم تنفيذ العملية لـ ${validEmps.length} موظف بنجاح`, 'success');
-      setSelectedEmps([]);
-    };
-
-    const toggleSelectAll = () => {
-      if (selectedEmps.length === employees.length) setSelectedEmps([]);
-      else setSelectedEmps(employees.map(e => e.id));
     };
 
     return (
-      <div className="animate-fade-in card">
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem'}}>
-          <h2 className="card-title" style={{margin:0}}><Clock /> تسجيل حضور وعمل إضافي</h2>
-          <button 
-            className={`btn ${isBulkMode ? 'btn-primary' : 'btn-outline'}`} 
-            onClick={() => setIsBulkMode(!isBulkMode)}
-            style={{display:'flex', alignItems:'center', gap:'0.5rem'}}
-          >
-            <Users size={18}/> {isBulkMode ? 'العودة للإضافة الفردية' : 'إضافة جماعية'}
-          </button>
-        </div>
-
-        {!isBulkMode ? (
-          <form onSubmit={handleAdd}>
-            <div className="stats-grid">
-              <div className="form-group">
-                <label>الموظف</label>
-                <select value={empId} onChange={e=>setEmpId(e.target.value)} required>
-                  <option value="">-- اختر --</option>
-                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                </select>
-              </div>
-              <div className="form-group"><label>التاريخ</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} required /></div>
-              <div className="form-group"><label>الحضور الفعلي</label><input type="time" value={checkIn} onChange={e=>setCheckIn(e.target.value)} /></div>
-              <div className="form-group"><label>الانصراف الفعلي</label><input type="time" value={checkOut} onChange={e=>setCheckOut(e.target.value)} placeholder={settings.workEnd} /></div>
-              <div className="form-group"><label>عمل إضافي (ساعات)</label><input type="number" step="0.5" value={extraHours} onChange={e=>setExtraHours(e.target.value)} /></div>
-            </div>
-            <button type="submit" className="btn btn-primary" style={{marginTop: '1rem'}}>حفظ السجل</button>
-          </form>
-        ) : (
+      <div className="animate-fade-in card" style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', overflow: 'visible' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div className="form-group" style={{maxWidth:'300px', marginBottom:'1.5rem'}}>
-              <label>التاريخ المختار</label>
-              <input type="date" value={date} onChange={e=>setDate(e.target.value)} required />
-            </div>
-
-            <div className="table-container" style={{maxHeight:'400px', overflowY:'auto', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', marginBottom:'1.5rem'}}>
-              <table style={{margin:0}}>
-                <thead style={{position:'sticky', top:0, zIndex:1, background:'var(--surface)'}}>
-                  <tr>
-                    <th style={{width:'40px'}}><input type="checkbox" checked={selectedEmps.length === employees.length && employees.length > 0} onChange={toggleSelectAll} /></th>
-                    <th>اسم الموظف</th>
-                    <th>الراتب الأساسي</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {employees.map(emp => (
-                    <tr key={emp.id} style={{cursor:'pointer'}} onClick={() => {
-                      if (selectedEmps.includes(emp.id)) setSelectedEmps(selectedEmps.filter(id => id !== emp.id));
-                      else setSelectedEmps([...selectedEmps, emp.id]);
-                    }}>
-                      <td><input type="checkbox" checked={selectedEmps.includes(emp.id)} readOnly onClick={e => e.stopPropagation()} /></td>
-                      <td style={{fontWeight:'700'}}>{emp.name}</td>
-                      <td>{parseFloat(emp.salary).toLocaleString('en-US')} ل.س</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div style={{display:'flex', gap:'1rem', flexWrap:'wrap'}}>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => handleBulkAction('present')}
-                style={{display:'flex', alignItems:'center', gap:'0.5rem', flex:1}}
-              >
-                <CheckCircle size={18}/> تسجيل حضور (الدوام الافتراضي) للـ {selectedEmps.length} موظف
-              </button>
-              <button 
-                className="btn btn-warning" 
-                onClick={() => handleBulkAction('leave')}
-                style={{display:'flex', alignItems:'center', gap:'0.5rem', flex:1}}
-              >
-                <CalendarCheck size={18}/> تسجيل إجازة للـ {selectedEmps.length} موظف
-              </button>
+            <h2 className="card-title" style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
+              <Clock style={{ color: 'var(--primary)', marginRight: '0.5rem' }} /> إدارة دوام اليوم
+            </h2>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+              إنجاز الموظفين: {completedCount} من {totalCount}
             </div>
           </div>
-        )}
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <input 
+              type="date" 
+              value={date} 
+              onChange={e => setDate(e.target.value)} 
+              className="btn-outline" 
+              style={{ padding: '0.65rem 1rem', borderRadius: 'var(--radius-md)' }} 
+            />
+            <button 
+              className={`btn ${isAllCompleted ? 'btn-primary' : 'btn-secondary'}`} 
+              onClick={handleSubmitDay}
+              disabled={!isAllCompleted}
+              style={{ opacity: isAllCompleted ? 1 : 0.5, cursor: isAllCompleted ? 'pointer' : 'not-allowed' }}
+            >
+              <CheckCircle size={18} /> اعتماد اليوم
+            </button>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div style={{ width: '100%', height: '8px', background: 'rgba(128,128,128,0.2)', borderRadius: '4px', marginBottom: '2rem', overflow: 'hidden' }}>
+          <div style={{ 
+            width: totalCount > 0 ? `${(completedCount / totalCount) * 100}%` : '0%', 
+            height: '100%', 
+            background: 'var(--success)', 
+            transition: 'width 0.5s ease' 
+          }} />
+        </div>
+
+        {/* Employee List */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {employeeStates.map((item, index) => {
+            const { emp, record, state } = item;
+            const isExpanded = expandedRow === emp.id;
+
+            let cardStyle = {
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              background: 'var(--surface)',
+              transition: 'all 0.3s ease',
+              overflow: 'hidden'
+            };
+
+            let accentBorder = '';
+            let statusBadge = null;
+
+            if (state === 'pending') {
+              statusBadge = <span className="badge" style={{ background: 'transparent', border: '1px solid var(--warning)', color: 'var(--warning)' }}>في الانتظار</span>;
+            } else if (state === 'checked-in') {
+              accentBorder = '4px solid var(--primary)';
+              statusBadge = <span className="badge" style={{ color: 'var(--primary)', background: 'rgba(59, 130, 246, 0.1)' }}>حضر: {record.checkIn}</span>;
+            } else if (state === 'completed') {
+              cardStyle.opacity = 0.6;
+              statusBadge = <span className="badge badge-success"><CheckCircle size={12} style={{ marginLeft: '4px' }}/> مكتمل ({record.checkIn} - {record.checkOut})</span>;
+            } else if (state === 'absent') {
+              cardStyle.opacity = 0.5;
+              statusBadge = <span className="badge badge-danger">غائب/إجازة</span>;
+            }
+
+            return (
+              <div key={emp.id} style={{ ...cardStyle, borderRight: accentBorder || cardStyle.border }}>
+                {/* Collapsed Header */}
+                <div 
+                  onClick={() => state !== 'completed' && state !== 'absent' && handleExpand(emp.id)}
+                  style={{ 
+                    padding: '1rem 1.5rem', 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    cursor: (state !== 'completed' && state !== 'absent') ? 'pointer' : 'default'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ 
+                      width: '40px', height: '40px', borderRadius: '50%', 
+                      background: 'var(--primary)', color: 'white', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                      fontWeight: 'bold', fontSize: '1.2rem',
+                      opacity: state === 'absent' ? 0.5 : 1
+                    }}>
+                      {emp.name.charAt(0)}
+                    </div>
+                    <span style={{ 
+                      fontWeight: '700', fontSize: '1.1rem',
+                      textDecoration: state === 'absent' ? 'line-through' : 'none'
+                    }}>
+                      {emp.name}
+                    </span>
+                  </div>
+                  <div>
+                    {statusBadge}
+                  </div>
+                </div>
+
+                {/* Expanded Area */}
+                {isExpanded && state !== 'completed' && state !== 'absent' && (
+                  <div style={{ 
+                    padding: '1.5rem', 
+                    borderTop: '1px solid var(--border)',
+                    background: 'rgba(128,128,128,0.02)',
+                    animation: 'fadeIn 0.3s ease-out'
+                  }}>
+                    {state === 'pending' && (
+                      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                        <div className="form-group" style={{ flex: 1, minWidth: '200px', marginBottom: 0 }}>
+                          <label>الحضور الفعلي</label>
+                          <input 
+                            type="time" 
+                            value={checkInTimes[emp.id] || ''} 
+                            onChange={(e) => setCheckInTimes({...checkInTimes, [emp.id]: e.target.value})} 
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                          <button className="btn btn-primary" onClick={() => handleCheckIn(index, emp.id)}>
+                            تسجيل الحضور
+                          </button>
+                          <button className="btn btn-outline" onClick={() => handleAbsent(index, emp.id)} style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}>
+                            تخطي / غياب
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {state === 'checked-in' && (
+                      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                        <div className="form-group" style={{ flex: 1, minWidth: '200px', marginBottom: 0 }}>
+                          <label>الانصراف الفعلي</label>
+                          <input 
+                            type="time" 
+                            value={checkOutTimes[emp.id] || ''} 
+                            onChange={(e) => setCheckOutTimes({...checkOutTimes, [emp.id]: e.target.value})} 
+                          />
+                        </div>
+                        <button className="btn btn-primary" style={{ background: 'var(--success)' }} onClick={() => handleCheckOut(index, emp.id, record.id, record.checkIn)}>
+                          اعتماد الانصراف
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {employeeStates.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+              لا يوجد موظفين مسجلين في النظام.
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -1378,6 +1484,7 @@ export default function App() {
               <option value="light">فاتح (Light)</option>
               <option value="dark">داكن (Dark)</option>
               <option value="colorful">ملون (Colorful)</option>
+              <option value="apple-glass">آبل جلاس (Apple Glass)</option>
             </select>
           </div>
           <button type="submit" className="btn btn-primary" style={{marginTop:'1rem'}}>حفظ الإعدادات</button>
