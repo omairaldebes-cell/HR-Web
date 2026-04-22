@@ -654,6 +654,8 @@ export default function App() {
     // Local state for forms
     const [checkInTimes, setCheckInTimes] = useState({});
     const [checkOutTimes, setCheckOutTimes] = useState({});
+    const [selectedEmps, setSelectedEmps] = useState([]);
+    const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
 
     // Initialize default times when employees or date changes
     useEffect(() => {
@@ -746,6 +748,67 @@ export default function App() {
       expandNextPending(index);
     };
 
+    const handleBulkCheckIn = async () => {
+      if (selectedEmps.length === 0) return showToast('يرجى اختيار موظفين أولاً', 'warning');
+      
+      const checkInTime = settings.workStart || '09:00';
+      const promises = selectedEmps.map(empId => {
+        const state = employeeStates.find(s => s.emp.id === empId)?.state;
+        if (state === 'pending') {
+          return addDoc(collection(db, 'attendance'), {
+            employeeId: empId,
+            date,
+            checkIn: checkInTime,
+            checkOut: '',
+            penaltyHours: 0,
+            extraHours: 0,
+            type: 'manual',
+            timestamp: Date.now()
+          });
+        }
+        return null;
+      }).filter(p => p !== null);
+
+      if (promises.length === 0) return showToast('لا يوجد موظفين مؤهلين للحضور في الاختيار الحالي', 'info');
+      
+      await Promise.all(promises);
+      showToast(`تم تسجيل حضور ${promises.length} موظف بنجاح`, 'success');
+      setSelectedEmps([]);
+      setIsMultiSelectMode(false);
+    };
+
+    const handleBulkCheckOut = async () => {
+      if (selectedEmps.length === 0) return showToast('يرجى اختيار موظفين أولاً', 'warning');
+      
+      const checkOutTime = settings.workEnd || '15:00';
+      const promises = selectedEmps.map(empId => {
+        const item = employeeStates.find(s => s.emp.id === empId);
+        if (item?.state === 'checked-in' && item.record) {
+          const penaltyHours = calculatePenaltyHours(item.record.checkIn, checkOutTime, settings.workStart, settings.workEnd);
+          return updateDoc(doc(db, 'attendance', item.record.id), {
+            checkOut: checkOutTime,
+            penaltyHours,
+          });
+        }
+        return null;
+      }).filter(p => p !== null);
+
+      if (promises.length === 0) return showToast('لا يوجد موظفين مؤهلين للانصراف في الاختيار الحالي', 'info');
+
+      await Promise.all(promises);
+      showToast(`تم تسجيل انصراف ${promises.length} موظف بنجاح`, 'success');
+      setSelectedEmps([]);
+      setIsMultiSelectMode(false);
+    };
+
+    const toggleSelectAll = () => {
+      if (selectedEmps.length === employees.length) {
+        setSelectedEmps([]);
+      } else {
+        setSelectedEmps(employees.map(e => e.id));
+      }
+    };
+
     const handleSubmitDay = () => {
       if (isAllCompleted) {
         showToast('تم اعتماد اليوم بنجاح!', 'success');
@@ -764,7 +827,17 @@ export default function App() {
               إنجاز الموظفين: {completedCount} من {totalCount}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+            <button 
+              className={`btn ${isMultiSelectMode ? 'btn-primary' : 'btn-outline'}`} 
+              onClick={() => {
+                setIsMultiSelectMode(!isMultiSelectMode);
+                if (!isMultiSelectMode) setSelectedEmps([]);
+              }}
+              style={{ padding: '0.65rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <Users size={18} /> {isMultiSelectMode ? 'إلغاء المتعدد' : 'اختيار متعدد'}
+            </button>
             <input 
               type="date" 
               value={date} 
@@ -782,6 +855,37 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {isMultiSelectMode && (
+          <div className="animate-fade-in" style={{ 
+            background: 'rgba(var(--primary-rgb), 0.05)', 
+            padding: '1rem 1.5rem', 
+            borderRadius: 'var(--radius-md)', 
+            marginBottom: '1.5rem', 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            border: '1px solid var(--border)'
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 'bold' }}>
+              <input 
+                type="checkbox" 
+                checked={selectedEmps.length === employees.length && employees.length > 0} 
+                onChange={toggleSelectAll} 
+                style={{ width: '18px', height: '18px' }}
+              />
+              اختيار الكل ({selectedEmps.length} موظف)
+            </label>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button className="btn btn-primary" onClick={handleBulkCheckIn} style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
+                حضور (09:00 ص)
+              </button>
+              <button className="btn btn-primary" onClick={handleBulkCheckOut} style={{ fontSize: '0.9rem', padding: '0.5rem 1rem', background: 'var(--success)' }}>
+                انصراف (03:00 م)
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Progress Bar */}
         <div style={{ width: '100%', height: '8px', background: 'rgba(128,128,128,0.2)', borderRadius: '4px', marginBottom: '2rem', overflow: 'hidden' }}>
@@ -827,16 +931,31 @@ export default function App() {
               <div key={emp.id} style={{ ...cardStyle, borderRight: accentBorder || cardStyle.border }}>
                 {/* Collapsed Header */}
                 <div 
-                  onClick={() => state !== 'completed' && state !== 'absent' && handleExpand(emp.id)}
+                  onClick={() => {
+                    if (isMultiSelectMode) {
+                      if (selectedEmps.includes(emp.id)) setSelectedEmps(selectedEmps.filter(id => id !== emp.id));
+                      else setSelectedEmps([...selectedEmps, emp.id]);
+                    } else if (state !== 'completed' && state !== 'absent') {
+                      handleExpand(emp.id);
+                    }
+                  }}
                   style={{ 
                     padding: '1rem 1.5rem', 
                     display: 'flex', 
                     justifyContent: 'space-between', 
                     alignItems: 'center',
-                    cursor: (state !== 'completed' && state !== 'absent') ? 'pointer' : 'default'
+                    cursor: (isMultiSelectMode || (state !== 'completed' && state !== 'absent')) ? 'pointer' : 'default'
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    {isMultiSelectMode && (
+                      <input 
+                        type="checkbox" 
+                        checked={selectedEmps.includes(emp.id)} 
+                        readOnly 
+                        style={{ width: '18px', height: '18px' }}
+                      />
+                    )}
                     <div style={{ 
                       width: '40px', height: '40px', borderRadius: '50%', 
                       background: 'var(--primary)', color: 'white', 
