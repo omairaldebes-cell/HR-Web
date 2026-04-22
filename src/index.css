@@ -832,3 +832,213 @@ tr:hover td {
   padding-top: 1rem;
   border-top: 1px solid var(--border);
 }
+
+/* ============================================================
+   APPLE GLASS THEME (System 26 "Visionary")
+   ============================================================ */
+.apple-glass {
+  /* Core Variables */
+  --siri-gradient: linear-gradient(135deg, #8b5cf6, #3b82f6);
+  --bg-color: #f8fafc;
+  --surface: rgba(255, 255, 255, 0.6);
+  --text-primary: #1d1d1f;
+  --text-secondary: #86868b;
+  --border: rgba(255, 255, 255, 0.4);
+  --glass-highlight: inset 1px 1px 0 0 rgba(255, 255, 255, 0.8);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 16px 40px -8px rgba(0, 0, 0, 0.1), 0 8px 16px -4px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 24px 60px -12px rgba(0, 0, 0, 0.15), 0 12px 24px -6px rgba(0, 0, 0, 0.1);
+  --glass-blur: blur(25px);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --primary: #8b5cf6;
+  --primary-hover: #7c3aed;
+  --secondary: rgba(139, 92, 246, 0.1);
+  --danger: #ff3b30;
+  --success: #34c759;
+  --warning: #ffcc00;
+
+  /* Mesh gradient background for light mode */
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0, transparent 50%), 
+    radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.15) 0, transparent 50%), 
+    radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.15) 0, transparent 50%);
+  background-attachment: fixed;
+  background-color: var(--bg-color);
+  
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Tajawal', sans-serif;
+  letter-spacing: 0.02em;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+@media (prefers-color-scheme: dark) {
+  .apple-glass {
+    --bg-color: #0A0A0A;
+    --surface: rgba(10, 10, 10, 0.7);
+    --text-primary: #f5f5f7;
+    --text-secondary: #a1a1a6;
+    --border: rgba(255, 255, 255, 0.1);
+    --glass-highlight: inset 1px 1px 0 0 rgba(255, 255, 255, 0.2);
+    --shadow-md: 0 16px 40px -8px rgba(0, 0, 0, 0.5), 0 8px 16px -4px rgba(0, 0, 0, 0.3);
+    
+    /* Vibrant mesh gradient for dark mode */
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.25) 0, transparent 50%), 
+      radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.25) 0, transparent 50%), 
+      radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.2) 0, transparent 50%);
+  }
+}
+
+/* Glass Components Overhaul */
+.apple-glass .sidebar,
+.apple-glass .top-header,
+.apple-glass .card,
+.apple-glass .modal-box,
+.apple-glass .stat-card,
+.apple-glass .payslip-dropdown,
+.apple-glass .calendar-container {
+  background-color: var(--surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-md), var(--glass-highlight);
+  border: 1px solid var(--border);
+}
+
+/* Base Overrides */
+.apple-glass .app-container {
+  background: transparent;
+}
+
+.apple-glass .main-content {
+  position: relative;
+  z-index: 1;
+}
+
+.apple-glass th {
+  background-color: transparent;
+  border-bottom: 1px solid var(--border);
+}
+
+.apple-glass tr:hover td {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Inputs & Buttons Overrides */
+.apple-glass .btn,
+.apple-glass input,
+.apple-glass select {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.apple-glass input:focus, 
+.apple-glass select:focus {
+  background-color: var(--surface);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.apple-glass .btn-primary {
+  background: var(--siri-gradient);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 14px 0 rgba(139, 92, 246, 0.39);
+}
+
+.apple-glass .btn-primary:hover {
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+}
+
+.apple-glass .btn-secondary {
+  background-color: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm), var(--glass-highlight);
+  border: 1px solid var(--border);
+}
+
+/* Depth layering & Z-Index */
+.apple-glass .sidebar {
+  z-index: 20;
+  background-color: rgba(255, 255, 255, 0.2); 
+}
+@media (prefers-color-scheme: dark) {
+  .apple-glass .sidebar { background-color: rgba(10, 10, 10, 0.4); }
+}
+
+.apple-glass .top-header {
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.4);
+}
+@media (prefers-color-scheme: dark) {
+  .apple-glass .top-header { background-color: rgba(10, 10, 10, 0.5); }
+}
+
+.apple-glass .modal-overlay {
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.apple-glass .modal-box {
+  background-color: var(--surface);
+  box-shadow: var(--shadow-lg), var(--glass-highlight);
+}
+
+/* Shimmer Hover Effect using mouse movement */
+/* We'll use CSS variables set by JS for the mouse position */
+.apple-glass .glass-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.apple-glass .glass-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(
+    circle 800px at var(--mouse-x, 50%) var(--mouse-y, 50%), 
+    rgba(255, 255, 255, 0.15),
+    transparent 40%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.apple-glass .glass-shimmer:hover::before {
+  opacity: 1;
+}
+
+/* If JS isn't tracking, fallback to a CSS sweep animation */
+.apple-glass .card:hover::after,
+.apple-glass .stat-card:hover::after,
+.apple-glass .btn:hover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.2), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.7s ease;
+  z-index: 10;
+  pointer-events: none;
+}
+.apple-glass .card:hover::after,
+.apple-glass .stat-card:hover::after,
+.apple-glass .btn:hover::after {
+  left: 200%;
+}
+
+/* SF Symbols style for Lucide icons */
+.apple-glass svg.lucide {
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
